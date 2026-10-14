@@ -9374,13 +9374,14 @@ function bmRecalc() {
   const { rows, skipped } = bmNormalize(R.raw, { map: B.mapping, unit: B.unit, counts: B.counts, decComma: B.decComma });
   B.rows = rows; B.skipped = skipped;
 }
-// The latest active benchmark entry for a country override (or the overall rate), if it still holds the applied value
+// The latest unreverted benchmark entry for a country override (or the overall rate), if it still holds the applied value.
+// Reverted entries are skipped: reverting a later entry restores the earlier one, which stays active and revertible.
 function bmActive(kind, country = null) {
   const log = S.benchmark?.applied || [];
   for (let i = log.length - 1; i >= 0; i--) {
-    const a = log[i]; if (a.kind !== kind || (kind === 'country' && a.country !== country)) continue;
+    const a = log[i]; if (a.reverted || a.kind !== kind || (kind === 'country' && a.country !== country)) continue;
     const cur = kind === 'overall' ? S.fpp.benchmarkRate : S.fpOv?.[country]?.rate;
-    return !a.reverted && cur === a.value ? a : null;
+    return cur === a.value ? a : null;
   }
   return null;
 }
@@ -9742,6 +9743,20 @@ UI_TESTS.push(
   const ok3=rv.ok && S.fpOv.Aland===undefined && S.fp.rowsBy.Aland.rateBasis!=='benchmark import';
   S.fpp.benchmarkRate=0.5;const late=bmRevert(o.entry.id,'Changed my mind');
   return [ok1 && ok2 && ok3 && !!late.error && m0!==1.25,JSON.stringify({noReason,applied:r.applied,basis:aland.rateBasis,bench:S.fpp.benchmarkRate,ok3,late})];
+ }],
+ ['Benchmark','Chained applies revert step by step: undoing the later benchmark restores the earlier one, which stays labelled and can itself be reverted (overall and country)',async()=>{
+  await r2Ready();
+  importBenchmark('country,rate_per_site_month\nAland,1.25\nBorduria,0.9','bench1.csv','internal');
+  const o1=bmApplyOverall('First benchmark');await o1.job;const c1=bmApplyCountries(['Aland'],'First benchmark');await c1.job;
+  importBenchmark('country,rate_per_site_month\nAland,0.6\nBorduria,0.4','bench2.csv','internal');
+  const o2=bmApplyOverall('Second benchmark');await o2.job;const c2=bmApplyCountries(['Aland'],'Second benchmark');await c2.job;
+  const [eo1,ec1,eo2,ec2]=S.benchmark.applied,early=bmRevert(eo1.id,'Out of order');
+  const ro2=bmRevert(eo2.id,'Undo second');await ro2.job;const rc2=bmRevert(ec2.id,'Undo second');await rc2.job;await waitFor(()=>simulationResultsCurrent());
+  const mid={bench:S.fpp.benchmarkRate,aland:S.fpOv.Aland?.rate,o:bmActive('overall')?.id===eo1.id,c:bmActive('country','Aland')?.id===ec1.id,basis:S.fp.rowsBy.Aland.rateBasis,note:/Used: overall 0\.90.*Aland/.test(bmNote())};
+  const ro1=bmRevert(eo1.id,'Undo first');await ro1.job;const rc1=bmRevert(ec1.id,'Undo first');await rc1.job;await waitFor(()=>simulationResultsCurrent());
+  const end={bench:S.fpp.benchmarkRate,aland:S.fpOv.Aland,o:bmActive('overall'),c:bmActive('country','Aland'),again:bmRevert(eo2.id,'Twice').error};
+  const ok=!!early.error && mid.bench===0.9 && mid.aland===1.25 && mid.o && mid.c && mid.basis==='benchmark import' && mid.note && ro1.ok && rc1.ok && end.bench===null && end.aland===undefined && end.o===null && end.c===null && /Already reverted/.test(end.again);
+  return [ok,JSON.stringify({early:early.error,mid,ro1,rc1,end})];
  }],
  ['Benchmark','Normalized benchmark rows, mapping and log round-trip in the project file (not the raw export); a damaged row refuses the file',async()=>{
   pjUserFixture();importBenchmark('Country,Patients Randomized,Site-Months\nAland,50,40\nBorduria,30,60','sitetrove_export.csv');S.fpOv.Aland={rate:1.25};S.benchmark.applied.push({id:'bm-test',kind:'country',country:'Aland',value:1.25,previous:null,reason:'Fixture benchmark',at:nowIso(),reverted:null});

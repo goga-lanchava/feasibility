@@ -1595,7 +1595,7 @@ function parseFhirText(text) {
 }
 function fhirToRaw(text) {
   const { items, rejected, format } = parseFhirText(text);
-  const byKey = new Map(), byFull = new Map(); const rep = { kind: 'FHIR', format, resources: items.length, byType: {}, duplicates: 0, possibleDuplicates: 0, unsupported: {}, orphans: {}, skippedAttachments: 0, containedRefs: 0, refuted: 0, nonNumeric: 0, rejected: [...rejected], supported: FHIR_SUPPORTED };
+  const byKey = new Map(), byFull = new Map(); const rep = { kind: 'FHIR', format, resources: items.length, byType: {}, duplicates: 0, possibleDuplicates: 0, unsupported: {}, orphans: {}, skippedAttachments: 0, containedRefs: 0, refuted: 0, nonNumeric: 0, obsExcluded: 0, obsPreliminary: 0, rejected: [...rejected], supported: FHIR_SUPPORTED };
   const bt = t => rep.byType[t] = rep.byType[t] || { total: 0, accepted: 0 };
   for (const it of items) {
     const k = `${it.r.resourceType}/${it.r.id}`; bt(it.r.resourceType).total++;
@@ -1643,8 +1643,11 @@ function fhirToRaw(text) {
       const status = r.status || '';
       p.rxRaw.push({ term, date: per.start || r.effectiveDateTime || r.authoredOn || r.dateAsserted || null, end: per.end || null, active: status === 'active' ? true : /^(completed|stopped|cancelled|entered-in-error|intended|on-hold)$/.test(status) ? false : null, source: `${r.resourceType}/${r.id}` });
     } else if (r.resourceType === 'Observation') {
+      // Observation.status: entered-in-error / cancelled results are not real results and must never drive eligibility; preliminary / registered are used but counted in the import report
+      if (r.status === 'entered-in-error' || r.status === 'cancelled') { rep.obsExcluded++; continue; }
       const vq = r.valueQuantity;
       if (!vq || vq.value == null || !isFinite(+vq.value)) { rep.nonNumeric++; continue; }
+      if (r.status === 'preliminary' || r.status === 'registered') rep.obsPreliminary++;
       const codes = (r.code?.coding || []).map(c => c.code).filter(Boolean);
       const rr = (r.referenceRange || [])[0] || {};
       p.obsRaw.push({ name: codeText(r.code), codes, labKey: Object.keys(LABS).find(k => (LABS[k].loinc || []).some(c => codes.includes(c))) || null, value: +vq.value, comparator: vq.comparator || null, unit: vq.code || vq.unit || null, date: r.effectiveDateTime || r.effectivePeriod?.start || r.issued || null, refHigh: rr.high ? { value: +rr.high.value, unit: rr.high.code || rr.high.unit || vq.code || vq.unit } : null, source: `Observation/${r.id}` });
@@ -4412,6 +4415,12 @@ const ENGINE_TESTS = [
   ['6 · FHIR', 'Invalid NDJSON reports the failing line', async () => {
     try { fhirToRaw(JSON.stringify(tPat('a')) + '\n{not json'); return [false, 'no error raised']; } catch (e) { return [/line 2/.test(e.message), e.message]; }
   }],
+  ['6 · FHIR', 'Entered-in-error / cancelled observations are excluded and reported; preliminary is used and counted', async () => {
+    const src = fhirToRaw(tBundle([tPat('a'), tObs('a', '4548-4', 9, '%', { status: 'final', effectiveDateTime: '2026-03-01' }), tObs('a', '4548-4', 6.5, '%', { status: 'entered-in-error' }), tObs('a', '4548-4', 6.4, '%', { status: 'cancelled' }), tPat('b'), tObs('b', '4548-4', 6.5, '%', { status: 'preliminary' })]));
+    const { patients } = await deidentify(src); const C = tCohort(patients, [tC('inc', 'lab', 'hba1c', '<=', { value: 7 })]); const R = src.report;
+    const ok = patients[0].labs.hba1c === 9 && statusOf(C, 0) === 'fails' && patients[1].labs.hba1c === 6.5 && statusOf(C, 1) === 'meets' && R.obsExcluded === 2 && R.obsPreliminary === 1 && R.byType.Observation.accepted === 2 && /2 entered-in-error\/cancelled/.test(importReportHtml({ import: R }));
+    return [ok, `a ${patients[0].labs.hba1c} ${statusOf(C, 0)} · b ${patients[1].labs.hba1c} ${statusOf(C, 1)} · excluded ${R.obsExcluded} · preliminary ${R.obsPreliminary}`];
+  }],
   ['6 · FHIR', 'Unmatched resources are counted, not silently dropped', async () => {
     const r = fhirToRaw(tBundle([tPat('a'), tObs('zzz', '4548-4', 7, '%')])).report;
     return [r.orphans.Observation === 1, JSON.stringify(r.orphans)];
@@ -4662,7 +4671,8 @@ function importReportHtml(I) {
     h += `<tr><td>Input format</td><td>${esc(R.format)} · ${fmt(R.resources)} resources</td></tr>`;
     h += Object.entries(R.byType).map(([t, v]) => `<tr><td>${esc(t)}</td><td>${fmt(v.accepted)} accepted of ${fmt(v.total)}${R.orphans[t] ? ` · <span class="chip med">${fmt(R.orphans[t])} unmatched (patient reference not found)</span>` : ''}${R.unsupported[t] ? ' · <span class="chip">unsupported type, ignored</span>' : ''}</td></tr>`).join('');
     h += `<tr><td>Duplicates</td><td>${fmt(R.duplicates)} duplicate patient IDs (first kept) · ${fmt(R.possibleDuplicates)} shared identifiers</td></tr>`;
-    h += `<tr><td>Skipped</td><td>${fmt(R.skippedAttachments)} non-text attachments · ${fmt(R.nonNumeric)} non-numeric observations · ${fmt(R.refuted)} refuted conditions · ${fmt(R.containedRefs)} contained references${R.rejected.length ? ` · ${fmt(R.rejected.length)} rejected items` : ''}</td></tr>`;
+    h += `<tr><td>Skipped</td><td>${fmt(R.skippedAttachments)} non-text attachments · ${fmt(R.nonNumeric)} non-numeric observations · ${fmt(R.obsExcluded || 0)} entered-in-error/cancelled observations · ${fmt(R.refuted)} refuted conditions · ${fmt(R.containedRefs)} contained references${R.rejected.length ? ` · ${fmt(R.rejected.length)} rejected items` : ''}</td></tr>`;
+    if (R.obsPreliminary) h += `<tr><td>Result status</td><td><span class="chip med">${fmt(R.obsPreliminary)} preliminary observations</span> used as reported; they may change when finalised</td></tr>`;
   } else if (R.kind === 'CSV') {
     h += `<tr><td>Rows</td><td>${fmt(R.accepted)} accepted of ${fmt(R.rows)} · ${fmt(R.duplicates)} duplicate patient IDs (first kept) · ${fmt(R.rejectedValues)} non-numeric lab values rejected</td></tr>`;
     h += `<tr><td>Lab columns</td><td>${(R.labCols || []).map(c => `<span class="mono">${esc(c.header)}</span> → ${esc(c.key ? LABS[c.key].label : 'unmapped')} <span class="muted">(${esc(c.unit || (c.unitSource ? c.unitSource : c.needsUnit ? 'unit missing' : 'unitless'))})</span>`).join('<br>') || '—'}</td></tr>`;

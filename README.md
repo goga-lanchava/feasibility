@@ -25,6 +25,8 @@ a median timing error of about 40% for the central estimate.
 | `PROJECT-SCHEMA.md` | Saved-project file format |
 | `CHANGELOG-*.md` | Release notes |
 | `stress-test/` | Back-test inputs, per-trial results and report |
+| `stress-test/EVALUATION-v0.9.3.md` | Evaluation of v0.9.3: forecast skill vs baselines, comparator weighting, KEYNOTE-407 hold-out, prioritized improvements |
+| `stress-test/analysis/` | `evaluate_v093.py` (reproduces the evaluation from a comparator snapshot), `ui_backtest.cjs` (runs a back-test through the UI with Playwright) |
 
 ## Development
 1. Edit engine code in `src/`, then run `node tools/build.mjs`.

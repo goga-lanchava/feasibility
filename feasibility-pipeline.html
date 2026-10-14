@@ -9294,11 +9294,17 @@ function bmDetect(headers) {
   const rk = map.rate ? bmKey(map.rate) : '';
   return { map, unit: /year|annual|_yr|pspy/.test(rk) ? 'year' : 'month', counts: /screen/.test(rk) && !/random/.test(rk) ? 'screened' : 'randomized' };
 }
-function bmNumber(v, decComma) {
+// null for an empty or not-reported cell, false for a cell that is not a whole number after locale cleanup ("1-2", "12abc", "$5"):
+// thousands separators only in proper groups, the decimal comma when detected, and % only where allowed (screen failure)
+function bmNumber(v, decComma, allowPct = false) {
   let s = String(v ?? '').trim(); if (!s || /^(na|n\/a|nr|-|—|null|none)$/i.test(s)) return null;
-  s = decComma ? s.replace(/\.(?=\d{3}(\D|$))/g, '').replace(',', '.') : s.replace(/,(?=\d{3}(\D|$))/g, '');
-  const pct = /%\s*$/.test(s), n = parseFloat(s.replace(/[^0-9.\-eE]/g, ''));
-  return Number.isFinite(n) ? { n, pct } : null;
+  const pct = /%$/.test(s); if (pct && !allowPct) return false;
+  s = s.replace(/\s*%$/, '');
+  const g = s.match(new RegExp(`^[+-]?[1-9]\\d{0,2}([${decComma ? '\\.' : ','} \\u00a0\\u202f])\\d{3}(?:\\1\\d{3})*(?:${decComma ? ',' : '\\.'}\\d+)?$`));
+  if (g) s = s.split(g[1]).join('');
+  if (decComma) s = s.replace(',', '.');
+  if (!/^[+-]?(\d+\.?\d*|\.\d+)([eE][+-]?\d+)?$/.test(s)) return false;
+  const n = Number(s); return Number.isFinite(n) ? { n, pct } : false;
 }
 // Normalized rows from the raw table with the current mapping; every skipped row keeps its reason
 function bmNormalize(raw, cfg) {
@@ -9307,11 +9313,14 @@ function bmNormalize(raw, cfg) {
   raw.forEach((r, i) => {
     const line = i + 2, cRaw = String(get(r, 'country') ?? '').trim();
     if (!cRaw) { skipped.push({ line, why: 'no country' }); return; }
-    const country = normCountry(cRaw), num = role => bmNumber(get(r, role), decComma)?.n ?? null;
-    const patients = num('patients'), sites = num('sites'), months = num('months'), siteMonths0 = num('siteMonths');
-    const sfV = bmNumber(get(r, 'sf'), decComma), sf = sfV ? (sfV.pct || sfV.n > 1 ? sfV.n / 100 : sfV.n) : null;
+    const bad = [], val = (role, pct) => { const x = bmNumber(get(r, role), decComma, pct); if (x === false) bad.push(map[role]); return x || null; };
+    const country = normCountry(cRaw), num = role => val(role)?.n ?? null;
+    const patients = num('patients'), sites = num('sites'), months = num('months'), siteMonths0 = num('siteMonths'), rate0 = num('rate'), tc = num('trialCount');
+    const sfV = val('sf', true), sf = sfV ? (sfV.pct || sfV.n > 1 ? sfV.n / 100 : sfV.n) : null;
+    if (bad.length) { skipped.push({ line, why: `not a number in ${bad.join(', ')}` }); return; }
+    if ([patients, sites, months, siteMonths0, tc].some(x => x != null && x < 0)) { skipped.push({ line, why: 'negative patients, sites, months, site-months or trial count' }); return; }
     const siteMonths = siteMonths0 ?? (sites > 0 && months > 0 ? sites * months : null);
-    let rate = num('rate'), basis = 'rate column';
+    let rate = rate0, basis = 'rate column';
     if (rate != null && unit === 'year') rate /= 12;
     if (rate == null && patients != null && siteMonths > 0) { rate = patients / siteMonths; basis = siteMonths0 != null ? 'patients ÷ site-months' : 'patients ÷ (sites × months)'; }
     if (rate != null && counts === 'screened' && basis === 'rate column') {
@@ -9321,7 +9330,6 @@ function bmNormalize(raw, cfg) {
     if (rate == null) { skipped.push({ line, why: 'no rate, and no patients with sites and months (or site-months)' }); return; }
     if (!(rate > 0)) { skipped.push({ line, why: 'rate is zero or negative' }); return; }
     if (rate > OV_SCHEMA.rate.max) { skipped.push({ line, why: `rate above ${OV_SCHEMA.rate.max} per site per month (check the unit)` }); return; }
-    const tc = num('trialCount');
     rows.push({ country, trial: String(get(r, 'trial') ?? '').trim() || null, rate: +rate.toFixed(4), patients, siteMonths: siteMonths != null ? +siteMonths.toFixed(2) : null, weight: tc > 0 ? tc : 1, basis });
   });
   return { rows, skipped };
@@ -9330,7 +9338,7 @@ function bmNormalize(raw, cfg) {
 // the normalized row rates (a row whose rate came from the rate column keeps that basis: unit and screen-failure conversions apply)
 function bmAggregate(rows) {
   if (!rows.length) return null;
-  const pooled = rows.every(r => r.patients != null && r.siteMonths > 0 && (r.basis == null || r.basis.startsWith('patients')));
+  const pooled = rows.every(r => r.patients != null && r.patients >= 0 && r.siteMonths > 0 && (r.basis == null || r.basis.startsWith('patients')));
   let rate;
   if (pooled) rate = rows.reduce((a, r) => a + r.patients, 0) / rows.reduce((a, r) => a + r.siteMonths, 0);
   else { const s = [...rows].sort((a, b) => a.rate - b.rate), tot = s.reduce((a, r) => a + r.weight, 0); let acc = 0; rate = s[s.length - 1].rate; for (const r of s) { acc += r.weight; if (acc >= tot / 2) { rate = r.rate; break; } } }
@@ -9704,6 +9712,13 @@ UI_TESTS.push(
   const B3=importBenchmark('Country,Patients Randomized,Site-Months\nAland,50,40\nAland,30,60','sitetrove_export.csv','internal'),a3=bmSummary().overall;
   const ok=B1.unit==='year' && B1.rows.every(r=>r.basis==='rate column') && a1.rate===1 && !a1.pooled && B2.counts==='screened' && a2.rate===0.75 && !a2.pooled && a3.rate===0.8 && a3.pooled;
   return [ok,JSON.stringify({a1,a2,a3})];
+ }],
+ ['Benchmark','Cells that are not whole numbers ("1-2", "12abc", "$5", a stray %) and negative counts skip the row with a reason instead of being read as fragments; grouped thousands, decimal commas and % screen failure still read',async()=>{
+  const B=importBenchmark('Country,Rate per site month,Patients Randomized,Site-Months\nAland,1,-100,100\nBorduria,0.5,1-2,10\nZembla,12abc,,\nKurland,$5,,\nRuritania,4%,,\nSylvania,"1,234",,\nGenovia,,40,50','x.csv'),s=bmSummary();
+  const sk=Object.fromEntries(B.skipped.map(x=>[x.line,x.why])),neg=/negative/.test(sk[2]||''),nan=[3,4,5,6].every(l=>/not a number/.test(sk[l]||'')) && sk[3].includes(B.mapping.patients) && sk[4].includes(B.mapping.rate),big=/above 50/.test(sk[7]||'');
+  const ok1=neg && nan && big && B.rows.length===1 && s.overall.rate===0.8 && s.overall.pooled;
+  const nums=[['1,234.5',false,false,1234.5],['1.234,5',true,false,1234.5],['0,74',true,false,0.74],['1 234',false,false,1234],['25%',false,true,25],['0,74',false,false,false],['1,2,3',true,false,false],['12abc',false,false,false],['1-2',false,false,false],['25%',false,false,false],['NA',false,false,null]].map(([v,dc,p,want])=>{const x=bmNumber(v,dc,p);return (x && typeof x==='object' ? x.n : x)===want;});
+  return [ok1 && nums.every(Boolean),JSON.stringify({sk,rows:B.rows,overall:s.overall,nums})];
  }],
  ['Benchmark','Benchmarks change the forecast only when applied with a reason; country rates become labelled overrides, unmodelled countries are skipped, and reverting restores the previous value',async()=>{
   await r2Ready();const m0=S.fp.rowsBy.Aland.rate;

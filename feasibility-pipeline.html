@@ -7261,7 +7261,7 @@ function projectPanel() {
     const n = S.patients?.length || 0;
     h += `<div class="callout" role="region" aria-label="Save project"><b>Save project</b>
       <div class="note" style="margin-top:4px"><b>Saved:</b> study setup and protocol; criteria with review metadata and baseline; assumptions and parameters; input provenance; registry snapshot${S.web ? ` (ClinicalTrials.gov, ${esc(S.web.fetchedAt.slice(0, 10))})` : ''}; country evidence records, reviews and review log; country decisions and decision log; user-selected footprint (without its result); site history, investigator responses (with their original reported values) and market records; site decisions and decision log; response reviews and review log; the log of reviewed values applied to country overrides; custom vocabulary.</div>
-      ${S.benchmark ? `<div class="note"><b>Benchmark data:</b> the ${fmt(S.benchmark.rows.length)} normalized rows from ${esc(S.benchmark.label)} (${esc(S.benchmark.fileName)}) and the benchmark log are included. Vendor exports may be licensed: check your licence before sharing the file.</div>` : ''}
+      ${S.benchmark ? `<div class="note"><b>Benchmark data:</b> ${S.benchmark.clearedAt ? `the rows from ${esc(S.benchmark.label)} (${esc(S.benchmark.fileName)}) were cleared; its source name and the benchmark log are included.` : `the ${fmt(S.benchmark.rows.length)} normalized rows from ${esc(S.benchmark.label)} (${esc(S.benchmark.fileName)}) and the benchmark log are included.`} Vendor exports may be licensed: check your licence before sharing the file.</div>` : ''}
       <div class="note"><b>Never saved:</b> API keys or other credentials, raw patient extract text, forecasts and other results (recalculated after loading), browser caches and session settings.</div>
       ${n ? `<label class="note" style="display:block;margin-top:6px"><input type="checkbox" data-proj-patients ${U.includePatients ? 'checked' : ''}> Include the ${fmt(n)} pseudonymized patient-level records${S.provenance?.patients ? ' (synthetic)' : ''} from ${esc(S.ingest?.source || 'the import')}</label>
         <div class="note">${U.includePatients ? '<b>Included:</b> these records are pseudonymized, not anonymized. They keep ages, sites, diagnoses, medications, lab values and month-level clinical timing. Treat the file as sensitive and check your data-sharing rules and approvals before sharing it with anyone.' : '<b>Omitted (default):</b> the file will contain no patient-level records. After loading, re-import the extract under Study to restore the patient cohort and its forecast; everything else is restored.'}</div>` : '<div class="note">No patient-level records are loaded, so none can be saved.</div>'}
@@ -9425,7 +9425,11 @@ function bmRevert(id, reason) {
   a.reverted = { at: nowIso(), reason };
   return { ok: true, job: recompute() };
 }
-function bmClear() { S.benchmark = null; S.benchmarkRaw = null; S.bmDraft = {}; }
+// While values from the benchmark are still applied, clearing drops the imported rows but keeps the source and log (provenance)
+function bmClear() {
+  const B = S.benchmark, keep = (B?.applied || []).some(a => !a.reverted && bmActive(a.kind, a.country) === a);
+  S.benchmark = keep ? { ...B, headers: [], mapping: {}, rows: [], skipped: [], clearedAt: nowIso() } : null; S.benchmarkRaw = null; S.bmDraft = {};
+}
 function bmTemplateCSV() {
   return toCSV([
     { country: 'United States', trial_id: 'NCT00000001', patients_randomized: 420, sites: 60, enrollment_months: 14, rate_per_site_month: '', screen_failure_rate: '', note: 'one row per trial and country' },
@@ -9435,9 +9439,11 @@ function bmTemplateCSV() {
 }
 // Plain text for Plan (escaped there) and the executive summary
 function bmNote() {
-  const B = S.benchmark, sm = bmSummary(); if (!B || !sm) return '';
+  const B = S.benchmark, sm = bmSummary(); if (!B || (!sm && !B.clearedAt)) return '';
   const ov = bmActive('overall'), cs = (B.applied || []).filter(a => a.kind === 'country' && bmActive('country', a.country) === a).map(a => a.country);
   const used = [ov ? `overall ${fmt2(ov.value)} patients/site/month as the benchmark rate` : '', cs.length ? `country rates for ${cs.join(', ')}` : ''].filter(Boolean).join('; ');
+  // Rows cleared but values still applied: the source stays named wherever the forecast is described
+  if (!sm) return used ? `${B.label} (${B.fileName}, imported ${B.importedAt.slice(0, 10)}; rows cleared ${B.clearedAt.slice(0, 10)}). Used: ${used}.` : '';
   return `${B.label} (${B.fileName}, imported ${B.importedAt.slice(0, 10)}): ${fmt(sm.overall.rows)} rows, ${fmt(sm.countries.length)} countries, overall ${fmt2(sm.overall.rate)} patients/site/month. ${used ? `Used: ${used}.` : 'Not applied to the forecast yet (Evidence › Benchmark data).'}`;
 }
 function benchmarkPanel() {
@@ -9453,6 +9459,13 @@ function benchmarkPanel() {
       <label class="field">Rate unit<select data-bm="unit"><option value="month" ${B.unit === 'month' ? 'selected' : ''}>per site per month</option><option value="year" ${B.unit === 'year' ? 'selected' : ''}>per site per year</option></select></label>
       <label class="field">Rate counts<select data-bm="counts"><option value="randomized" ${B.counts === 'randomized' ? 'selected' : ''}>randomized or enrolled patients</option><option value="screened" ${B.counts === 'screened' ? 'selected' : ''}>screened patients (needs screen-failure rate)</option></select></label>
     </div>` : `<p class="note">Column mapping as imported (${esc(Object.entries(B.mapping).map(([k, v]) => `${k}: ${v}`).join(', '))}). Re-import the file to change it.</p>`;
+  const log = (B.applied || []).slice().reverse().map(a => `<li>${esc(a.at.slice(0, 16).replace('T', ' '))} · ${a.kind === 'overall' ? 'benchmark rate' : esc(a.country)} ${fmt2(a.value)} (was ${a.previous == null ? 'not set' : fmt2(a.previous)}) · ${esc(a.reason)}${a.reverted ? ` · reverted ${esc(a.reverted.at.slice(0, 10))}: ${esc(a.reverted.reason)}` : bmActive(a.kind, a.country) === a ? ` <input class="brief" style="width:180px" data-bm-draft="rev:${esc(a.id)}" placeholder="Reason to revert" value="${esc(d['rev:' + a.id] || '')}"> <button class="btn btn-sm btn-ghost" data-act="bmRevert" data-id="${esc(a.id)}">Revert</button>` : ' · superseded'}</li>`).join('');
+  const tail = `${S.bmMsg ? `<div class="status-line ${S.bmMsg.err ? 'err' : ''}" role="status">${esc(S.bmMsg.text)}</div>` : ''}
+    ${log ? `<details class="claude"><summary>Benchmark log (${(B.applied || []).length})</summary><ul class="note">${log}</ul></details>` : ''}</div>`;
+  if (B.clearedAt) {
+    const still = (B.applied || []).some(a => bmActive(a.kind, a.country) === a);
+    return head + `<p class="note"><b>${esc(B.fileName)}</b> (${esc(B.label)}, imported ${esc(B.importedAt.slice(0, 10))}): rows cleared ${esc(B.clearedAt.slice(0, 10))}. ${still ? 'The source and log are kept because values from it are still applied; revert them below or import the file again.' : 'No values from it are applied any more; clear it again to remove the source and log.'}</p>` + tail;
+  }
   const reasons = {}; for (const s of B.skipped || []) reasons[s.why] = (reasons[s.why] || 0) + 1;
   const status = `<p class="note"><b>${esc(B.fileName)}</b>: ${fmt(B.rows.length)} rows used${B.skipped?.length ? `, ${fmt(B.skipped.length)} skipped (${esc(Object.entries(reasons).map(([w, n]) => `${n} ${w}`).join('; '))})` : ''}.${B.decComma ? ' Decimal commas read.' : ''}${!B.mapping.country ? ' <b>Map the country column.</b>' : ''}</p>`;
   if (!sm) return head + mapping + status + '</div>';
@@ -9462,19 +9475,17 @@ function benchmarkPanel() {
     return `<tr><td><label><input type="checkbox" data-bm-sel="${esc(c.country)}" ${sel[c.country] && modelled ? 'checked' : ''} ${modelled ? '' : 'disabled'}> ${esc(c.country)}</label></td><td class="num">${fmt2(c.rate)}</td><td class="num">${fmt(c.rows)}${c.trials > c.rows ? ` · ${fmt(c.trials)} trials` : ''}${!c.pooled && c.rows > 1 ? ' (median)' : ''}</td><td class="num">${row ? fmt2(active ? active.modelValueBefore : row.rate) : '—'}</td><td class="num">${row ? `${fmt2(c.rate / (active ? active.modelValueBefore : row.rate))}×` : 'not modelled'}</td><td>${active ? `applied ${esc(active.at.slice(0, 10))}` : S.fpOv?.[c.country]?.rate != null ? `override ${fmt2(S.fpOv[c.country].rate)}` : ''}</td></tr>`;
   }).join('');
   const ovA = bmActive('overall');
-  const log = (B.applied || []).slice().reverse().map(a => `<li>${esc(a.at.slice(0, 16).replace('T', ' '))} · ${a.kind === 'overall' ? 'benchmark rate' : esc(a.country)} ${fmt2(a.value)} (was ${a.previous == null ? 'not set' : fmt2(a.previous)}) · ${esc(a.reason)}${a.reverted ? ` · reverted ${esc(a.reverted.at.slice(0, 10))}: ${esc(a.reverted.reason)}` : bmActive(a.kind, a.country) === a ? ` <input class="brief" style="width:180px" data-bm-draft="rev:${esc(a.id)}" placeholder="Reason to revert" value="${esc(d['rev:' + a.id] || '')}"> <button class="btn btn-sm btn-ghost" data-act="bmRevert" data-id="${esc(a.id)}">Revert</button>` : ' · superseded'}</li>`).join('');
   return head + mapping + status + `
     <div class="stat-grid"><div class="stat"><span class="eyebrow">Overall benchmark</span><b>${fmt2(sm.overall.rate)}</b><span class="note">patients/site/month · ${fmt(sm.overall.rows)} rows${sm.overall.pooled ? ', pooled' : ', median'}</span></div>
       <div class="stat"><span class="eyebrow">Registry comparators</span><b>${S.fp ? fmt2(ovA ? (ovA.previous ?? S.fp.globalRate) : S.fp.globalRate) : '—'}</b><span class="note">${S.fp ? 'comparator rate used by the model' : 'run the analysis to compare'}</span></div></div>
     <div class="btn-row"><input class="brief" style="min-width:240px" data-bm-draft="overall" placeholder="Reason (e.g. Citeline benchmark, phase 3 since 2015)" value="${esc(d.overall || '')}"><button class="btn btn-sm" data-act="bmApplyOverall">${ovA ? 'Re-apply' : 'Use'} the overall benchmark as the benchmark rate</button><span class="note">Re-centres every country on it, keeping the registry's country differences.</span></div>
     <div class="tbl-wrap"><table class="tbl"><thead><tr><th>Country</th><th class="num">Benchmark</th><th class="num">Rows</th><th class="num">Model rate</th><th class="num">Benchmark ÷ model</th><th>Override</th></tr></thead><tbody>${rowsHtml}</tbody></table></div>
     <div class="btn-row"><input class="brief" style="min-width:240px" data-bm-draft="countries" placeholder="Reason for the ticked countries" value="${esc(d.countries || '')}"><button class="btn btn-sm" data-act="bmApplyCountries" ${S.fp ? '' : 'disabled'}>Apply country rates to the ticked countries</button><span class="note">Writes each country's benchmark to its rate override (replaces the model rate there).</span></div>
-    ${S.bmMsg ? `<div class="status-line ${S.bmMsg.err ? 'err' : ''}" role="status">${esc(S.bmMsg.text)}</div>` : ''}
-    ${log ? `<details class="claude"><summary>Benchmark log (${(B.applied || []).length})</summary><ul class="note">${log}</ul></details>` : ''}</div>`;
+    ${tail}`;
 }
 Object.assign(ACTIONS, {
   bmTemplate: () => download('benchmark_template.csv', bmTemplateCSV(), 'text/csv'),
-  bmClear: () => { if ((S.benchmark?.applied || []).some(a => !a.reverted && bmActive(a.kind, a.country) === a) && !UX_IO.confirm('Values from this benchmark are still applied to the forecast. Clearing the data keeps them (and their log) in the overrides only. Clear the benchmark data?')) return; bmClear(); S.bmMsg = { text: 'Benchmark data cleared. Applied values stay in the overrides until you change them under Plan.' }; renderAll(); },
+  bmClear: () => { if ((S.benchmark?.applied || []).some(a => !a.reverted && bmActive(a.kind, a.country) === a) && !UX_IO.confirm('Values from this benchmark are still applied to the forecast. Clearing removes the imported rows; the applied values stay, and the source name and benchmark log are kept so they remain traceable. Clear the benchmark rows?')) return; bmClear(); S.bmMsg = { text: S.benchmark ? 'Benchmark rows cleared. Applied values and their log are kept until you revert or change them.' : 'Benchmark data cleared.' }; renderAll(); },
   bmApplyOverall: () => { const r = bmApplyOverall(S.bmDraft?.overall); S.bmMsg = r.error ? { text: r.error, err: true } : { text: `Benchmark rate set to ${fmt2(r.entry.value)} patients/site/month; the forecast is recalculating.` }; if (r.ok) S.bmDraft.overall = ''; renderAll(); },
   bmApplyCountries: () => { const sel = S.bmDraft?.sel || {}; const r = bmApplyCountries(Object.keys(sel).filter(c => sel[c]), S.bmDraft?.countries); S.bmMsg = r.error ? { text: r.error, err: true } : { text: `Applied benchmark rates to ${r.applied.join(', ')}${r.skipped.length ? `; skipped ${r.skipped.join('; ')}` : ''}. The forecast is recalculating.` }; if (r.ok) S.bmDraft.countries = ''; renderAll(); },
   bmRevert: a => { const id = a.dataset.id, r = bmRevert(id, S.bmDraft?.['rev:' + id]); S.bmMsg = r.error ? { text: r.error, err: true } : { text: 'Reverted; the forecast is recalculating.' }; renderAll(); },
@@ -9500,6 +9511,7 @@ validateProjectState = function (st, P) {
       if (!isObj(b.mapping) || !Object.values(b.mapping).every(v => typeof v === 'string')) e.push('benchmark.mapping is malformed');
       if (!Array.isArray(b.rows) || b.rows.length > BM_MAX_ROWS) e.push('benchmark.rows must be a list');
       else { const bad = b.rows.findIndex(r => !isObj(r) || typeof r.country !== 'string' || !r.country || typeof r.rate !== 'number' || !(r.rate > 0) || checkNum(String(r.rate), OV_SCHEMA.rate).error || (r.weight != null && !(r.weight > 0))); if (bad >= 0) e.push(`benchmark row ${bad + 1} needs a country and a rate above 0 and at most ${OV_SCHEMA.rate.max}`); }
+      if (b.clearedAt != null && !validIso(b.clearedAt)) e.push('benchmark.clearedAt must be a date');
       if (b.applied != null && !(Array.isArray(b.applied) && b.applied.every(a => isObj(a) && typeof a.id === 'string' && ['overall', 'country'].includes(a.kind) && typeof a.value === 'number' && a.value > 0 && String(a.reason || '').trim().length >= 3 && validIso(a.at) && (a.kind === 'overall' || typeof a.country === 'string')))) e.push('benchmark.applied is malformed');
     }
   }
@@ -9508,7 +9520,7 @@ validateProjectState = function (st, P) {
 const candidateFromProjectR4 = candidateFromProject;
 candidateFromProject = function (P, st) { const out = candidateFromProjectR4(P, st); if (st.benchmark) out.c.benchmark = { ...st.benchmark, label: BM_SOURCES[st.benchmark.source], skipped: st.benchmark.skipped || [], applied: st.benchmark.applied || [] }; return out; };
 const buildReportR5 = buildReport;
-buildReport = function () { const r = buildReportR5(); if (S.benchmark) r.benchmark = { source: S.benchmark.label, fileName: S.benchmark.fileName, importedAt: S.benchmark.importedAt, mapping: S.benchmark.mapping, summary: bmSummary(), log: S.benchmark.applied, note: 'User-supplied benchmark data (vendor export or internal), not independently verified; applied only where logged.' }; return r; };
+buildReport = function () { const r = buildReportR5(); if (S.benchmark) r.benchmark = { source: S.benchmark.label, fileName: S.benchmark.fileName, importedAt: S.benchmark.importedAt, mapping: S.benchmark.mapping, summary: bmSummary(), log: S.benchmark.applied, ...(S.benchmark.clearedAt ? { rowsClearedAt: S.benchmark.clearedAt } : {}), note: 'User-supplied benchmark data (vendor export or internal), not independently verified; applied only where logged.' }; return r; };
 
 UI_TESTS.push(
  ['Tasks','Each tab renders its panels without errors, duplicate element ids or clashes with the page and Settings',async()=>{
@@ -9737,6 +9749,16 @@ UI_TESTS.push(
   const after=JSON.stringify({rows:S.benchmark?.rows,mapping:S.benchmark?.mapping,applied:S.benchmark?.applied});const panel=benchmarkPanel();
   const bad=await pjRehash(x.text,P=>{P.state.benchmark.rows[1].rate=-1;});const r2=await parseProjectText(bad);
   return [!x.r.error && before===after && S.benchmarkRaw===null && /Re-import the file to change it/.test(panel) && bmActive('country','Aland')?.id==='bm-test' && !!r2.error && /benchmark row 2/.test(r2.error),JSON.stringify({err:x.r.error,same:before===after,raw:S.benchmarkRaw,bad:r2.error})];
+ }],
+ ['Benchmark','Clearing benchmark data while its values are applied drops the rows but keeps the source and log, so the overrides stay labelled and traceable (also after a project round trip); once nothing is applied, clearing removes it all',async()=>{
+  await r2Ready();importBenchmark('country,rate_per_site_month\nAland,1.25\nBorduria,0.9','bench.csv','internal');
+  const r=bmApplyCountries(['Aland'],'Internal phase 3 data');await r.job;await waitFor(()=>simulationResultsCurrent());
+  let msg='';const conf=UX_IO.confirm;UX_IO.confirm=m=>{msg=m;return true;};try{ACTIONS.bmClear();}finally{UX_IO.confirm=conf;}
+  await recompute();await waitFor(()=>simulationResultsCurrent());const panel=benchmarkPanel(),id=S.benchmark?.applied?.[0]?.id;
+  const ok1=!!S.benchmark && S.benchmark.rows.length===0 && S.benchmarkRaw===null && S.benchmark.applied.length===1 && S.fp.rowsBy.Aland.rateBasis==='benchmark import' && (S.risks||[]).some(f=>/imported benchmark data/.test(f.title)) && /Benchmark log \(1\)/.test(panel) && /rows cleared/.test(panel) && /still applied/.test(panel) && /rows cleared.*Used: country rates for Aland/.test(bmNote()) && !!buildReport().benchmark?.rowsClearedAt && /log are kept/.test(msg) && !/\(and their log\) in the overrides/.test(msg);
+  const x=await pjRoundTrip(false);const ok2=!x.r.error && S.benchmark?.applied?.[0]?.id===id && !!S.benchmark?.clearedAt && bmActive('country','Aland')?.id===id;
+  const rv=bmRevert(id,'Rows were cleared');await rv.job;const after=benchmarkPanel(),noteAfter=bmNote();ACTIONS.bmClear();const ok3=rv.ok && /applied any more/.test(after) && noteAfter==='' && S.benchmark===null && S.fpOv.Aland===undefined;
+  return [ok1 && ok2 && ok3,JSON.stringify({ok1,ok2,ok3,basis:S.fp?.rowsBy?.Aland?.rateBasis,err:x.r.error,msg})];
  }],
 );
 

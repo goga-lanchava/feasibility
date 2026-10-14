@@ -9326,10 +9326,11 @@ function bmNormalize(raw, cfg) {
   });
   return { rows, skipped };
 }
-// Pooled rate (Σ patients ÷ Σ site-months) when every row has both, otherwise the weighted median of row rates
+// Pooled rate (Σ patients ÷ Σ site-months) when every row's rate was derived from those counts, otherwise the weighted median of
+// the normalized row rates (a row whose rate came from the rate column keeps that basis: unit and screen-failure conversions apply)
 function bmAggregate(rows) {
   if (!rows.length) return null;
-  const pooled = rows.every(r => r.patients != null && r.siteMonths > 0);
+  const pooled = rows.every(r => r.patients != null && r.siteMonths > 0 && (r.basis == null || r.basis.startsWith('patients')));
   let rate;
   if (pooled) rate = rows.reduce((a, r) => a + r.patients, 0) / rows.reduce((a, r) => a + r.siteMonths, 0);
   else { const s = [...rows].sort((a, b) => a.rate - b.rate), tot = s.reduce((a, r) => a + r.weight, 0); let acc = 0; rate = s[s.length - 1].rate; for (const r of s) { acc += r.weight; if (acc >= tot / 2) { rate = r.rate; break; } } }
@@ -9696,6 +9697,13 @@ UI_TESTS.push(
   const B3=importBenchmark('country\tscreened per site per year\tscreen failure rate\nItaly\t12\t25%\nFrance\t6\t','own.tsv',null),s3=bmSummary();
   const ok3=B3.counts==='screened' && B3.unit==='year' && Math.abs(s3.countries.find(c=>c.country==='Italy').rate-0.75)<1e-4 && B3.skipped.length===1 && /screen-failure/.test(B3.skipped[0].why);
   return [ok1 && ok2 && ok3,JSON.stringify({m1:B1.mapping,us,sk1:B1.skipped,ok2,dec:B2.decComma,s3:s3.countries,sk3:B3.skipped})];
+ }],
+ ['Benchmark','A rate column keeps its unit and screen-failure conversion in the aggregate even when patients and site-months are also mapped; rows derived from counts are still pooled',async()=>{
+  const B1=importBenchmark('country,enrolled per site per year,patients randomized,site_months\nItaly,12,120,10\nItaly,24,60,10','own.csv','internal'),a1=bmSummary().overall;
+  const B2=importBenchmark('country,screened per site per month,screen failure rate,patients randomized,site_months\nItaly,1,25%,120,120','own.csv','internal'),a2=bmSummary().overall;
+  const B3=importBenchmark('Country,Patients Randomized,Site-Months\nAland,50,40\nAland,30,60','sitetrove_export.csv','internal'),a3=bmSummary().overall;
+  const ok=B1.unit==='year' && B1.rows.every(r=>r.basis==='rate column') && a1.rate===1 && !a1.pooled && B2.counts==='screened' && a2.rate===0.75 && !a2.pooled && a3.rate===0.8 && a3.pooled;
+  return [ok,JSON.stringify({a1,a2,a3})];
  }],
  ['Benchmark','Benchmarks change the forecast only when applied with a reason; country rates become labelled overrides, unmodelled countries are skipped, and reverting restores the previous value',async()=>{
   await r2Ready();const m0=S.fp.rowsBy.Aland.rate;

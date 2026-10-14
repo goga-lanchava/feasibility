@@ -330,7 +330,7 @@ body[data-view="expert"] .simple-only { display: none !important; }
 
   <header class="pipeline-header">
     <div class="pipeline-title-row">
-      <h1>Clinical Trial Feasibility · v0.9.4</h1>
+      <h1>Clinical Trial Feasibility · v0.9.5</h1>
       <div class="header-actions">
         <details class="menu" id="projectMenu"><summary class="btn btn-sm" title="Save, load or reset the analysis">Project</summary>
           <div class="menu-pop" role="group" aria-label="Project">
@@ -470,7 +470,7 @@ body[data-view="expert"] .simple-only { display: none !important; }
 <input type="file" id="fileProto" accept=".txt,.md,text/plain" hidden>
 <input type="file" id="fileIntel" accept=".json,application/json" hidden>
 <input type="file" id="fileProject" accept=".json,application/json" hidden>
-<input type="file" id="fileFeedback" accept=".csv,text/csv" hidden><input type="file" id="fileMarket" accept=".csv,text/csv" hidden><input type="file" id="fileRules" accept=".json,application/json" hidden>
+<input type="file" id="fileFeedback" accept=".csv,text/csv" hidden><input type="file" id="fileMarket" accept=".csv,text/csv" hidden><input type="file" id="fileRules" accept=".json,application/json" hidden><input type="file" id="fileBench" accept=".csv,.tsv,.txt,text/csv,text/tab-separated-values,text/plain" hidden>
 
 <!-- Numerical engine: generated from src/mc-kernels.js and src/mc-worker.js by `node tools/build.mjs`. Do not edit between these tags. -->
 <script id="mc-kernels" data-sha256="3c776fa1a306a08f3132adc81b07e4819ec482a7b78572855602552ba318467f">
@@ -810,14 +810,14 @@ const rate = v => { const n = num(v); if (n == null) return null; return (String
 if (typeof MC_KERNELS === 'undefined') throw new Error('Numerical engine block missing: rebuild with node tools/build.mjs');
 const { mulberry32, randn, poisson, largestRemainder, cappedDistribute } = MC_KERNELS;
 function fnvHex(str) { let h = 0x811c9dc5; for (let i = 0; i < str.length; i++) { h ^= str.charCodeAt(i); h = Math.imul(h, 0x01000193); } return (h >>> 0).toString(16).padStart(8, '0'); }
-function parseCSV(text) {
+function parseCSV(text, delim = ',') {
   const rows = []; let row = [], f = '', q = false;
   text = text.replace(/^﻿/, '');
   for (let i = 0; i < text.length; i++) {
     const c = text[i];
     if (q) { if (c === '"') { if (text[i + 1] === '"') { f += '"'; i++; } else q = false; } else f += c; }
     else if (c === '"') q = true;
-    else if (c === ',') { row.push(f); f = ''; }
+    else if (c === delim) { row.push(f); f = ''; }
     else if (c === '\n' || c === '\r') { if (c === '\r' && text[i + 1] === '\n') i++; row.push(f); rows.push(row); row = []; f = ''; }
     else f += c;
   }
@@ -1210,6 +1210,7 @@ function freshState() {
     setup: { path: null, open: true, override: {} }, provenance: {},
     countryReview: {}, countryReviewLog: [], crDraft: {}, userFp: null, evidenceReview: {}, evidenceReviewLog: [], evDraft: {},
     siteReview: {}, siteReviewLog: [], srDraft: {}, responseReview: {}, responseReviewLog: [], rrDraft: {}, siteApplied: [], apDraft: {},
+    benchmark: null, benchmarkRaw: null, bmDraft: {}, bmMsg: null,
   };
 }
 S = freshState();
@@ -3652,7 +3653,7 @@ function computeFootprint(deferSimulation = false) {
   // Every rate carries its basis and evidence weight; registry proxies are never labelled observed site performance
   rows.forEach(r => {
     const nR = r.c.rates.length, ov = S.fpOv[r.country] || {}, wt = nR ? nR / (nR + F.shrinkK) : 0;
-    r.rateBasis = ov.rate != null ? 'manual override' : r.assumed ? 'user assumption' : nR ? 'registry proxy' : (g.medRateIsDefault ? 'default' : 'global prior');
+    r.rateBasis = ov.rate != null ? (bmActive('country', r.country) ? 'benchmark import' : 'manual override') : r.assumed ? 'user assumption' : nR ? 'registry proxy' : (g.medRateIsDefault ? 'default' : 'global prior');
     r.evidence = { trials: nR, ownWeight: wt, quality: ov.rate != null || r.assumed ? 'user supplied' : nR === 0 ? 'none' : (nR < 3 || wt < 0.5) ? 'weak' : nR < 8 ? 'moderate' : 'stronger' };
   });
   const fixedSum = sp.filter(x => x.sites != null).reduce((a, x) => a + x.sites, 0);
@@ -3843,6 +3844,9 @@ function footprintFlags() {
   if (fp.matchMode === 'pps' && pm?.clamped === 'high') out.push({ sev: 'med', cat: 'Evidence', title: `Planned load of ${fmt1(pm.planned)} patients per site is above 95% of comparator trials`, detail: `${fmt(S.params.target)} participants at ${fmt(pm.sites)} sites; 95% of the ${fmt(pm.comparators)} usable comparator trials enrolled at most ${fmt1(pm.hi)} per listed site. The forecast uses the busiest comparators' rates and may be optimistic: consider more sites, or confirm the per-site load with investigators.` });
   if (fp.matchMode === 'pps' && pm?.clamped === 'low') out.push({ sev: 'info', cat: 'Evidence', title: `Planned load of ${fmt1(pm.planned)} patients per site is below 95% of comparator trials`, detail: `With many sites each enrolling few participants, the forecast uses the lightest-loaded comparators (${fmt1(pm.lo)} per site). Check that every planned site is needed.` });
   if (fp.matchMode !== 'pps' && S.fpp.ppsMatch && (S.web?.global?.items || []).length >= 3) out.push({ sev: 'info', cat: 'Method', title: 'Comparators are not matched on patients per site', detail: pm && !pm.applied ? `Only about ${fmt1(pm.effective)} comparator trials had a load close to this plan's ${fmt1(pm.planned)} patients per site (at least ${PPS_MIN_EFFECTIVE} are needed), so comparator trials are weighted by size only.` : 'No planned site count was entered, so comparator trials are weighted by size only. Enter the planned number of sites under Study (or a site count for every proposed country): in back-tests of completed trials, matching on patients per site reduced timing errors.' });
+  // v0.9.5: imported benchmark data in use is a labelled, user-supplied basis
+  const bmUsed = (S.benchmark?.applied || []).filter(a => bmActive(a.kind, a.country) === a);
+  if (bmUsed.length) out.push({ sev: 'info', cat: 'Method', title: `Recruitment rates use imported benchmark data (${S.benchmark.label})`, detail: `${bmUsed.map(a => a.kind === 'overall' ? `benchmark rate ${fmt2(a.value)}` : `${a.country} ${fmt2(a.value)}`).join('; ')} patients/site/month from ${S.benchmark.fileName}, imported ${S.benchmark.importedAt.slice(0, 10)}. User-supplied data, not independently verified; each value is logged with its reason under Evidence › Benchmark data.` });
   const F_ = S.fpp;
   if ((F_.speedScenario && F_.speedScenario !== 'typical') || F_.benchmarkRate > 0) out.push({ sev: 'info', cat: 'Method', title: 'Recruitment rates use a user assumption', detail: [F_.speedScenario && F_.speedScenario !== 'typical' ? `Speed scenario: ${SPEED_SCENARIOS[F_.speedScenario].label}.` : '', F_.benchmarkRate > 0 ? `Benchmark rate ${fmt2(F_.benchmarkRate)} patients/site/month replaces the registry level (${fmt2(fp.globalRate)}); country differences are kept.` : ''].filter(Boolean).join(' ') + ' State the source of this assumption when presenting the forecast.' });
   const mc = fp.modifierCheck;
@@ -4080,6 +4084,7 @@ function wsFootprint() {
       <label class="field" title="Your own benchmark for this kind of trial, e.g. from previous studies with these sites. It re-centres every country's rate while keeping their relative differences. Empty uses the registry comparators${S.fp?.globalRate ? ` (${fmt2(S.fp.globalRate)} now)` : ''}.">Benchmark rate, patients/site/month (optional)<input type="number" step="0.05" min="0" max="50" data-fpp="benchmarkRate" value="${S.fpp.benchmarkRate ?? ''}" placeholder="registry"></label>
     </div>
     ${comparatorBasisNote() ? `<p class="note" id="comparatorBasis">${esc(comparatorBasisNote())}</p>` : ''}
+    ${bmNote() ? `<p class="note" id="benchmarkNote">Imported benchmark: ${esc(bmNote())}</p>` : ''}
     <details class="claude"><summary>Model assumptions (${fmt(S.params.sims)} runs, seed ${S.params.seed}; shares, start-up, stagger, rate uncertainty, saturation and comparator factors)</summary>
     <div class="field-grid" style="margin-top:8px">
       ${pfield('sims', 'Monte Carlo runs', 100, 1)}${pfield('seed', 'Random seed', 1, 1)}
@@ -5209,7 +5214,7 @@ function summarizeSim(s) { return { sites: s.nSites, runs: s.N, probabilityOfTar
 
 
 /* Audited extension: v0.3.0, research prototype. Offline inputs stay local. */
-const APP_VERSION = '0.9.4';
+const APP_VERSION = '0.9.5';
 const REPORT_SCHEMA = 'tfp-analysis/2';
 const FEEDBACK_COLS = ['site_id','site_name','country','interest','eligible_patients','enrollment_per_month','startup_months','competing_trials','response_date','challenges','source',
   'reporter','eligible_period_months','screened_per_month','randomized_per_month','enrollment_unit','screening_confirmation','competing_overlap','referral_pathways','investigators','coordinators','capabilities'];
@@ -6372,6 +6377,7 @@ function buildExecSummary() {
   for (const r of H) if (rangeSentence(r.sim, D)) L.push(`- ${r.label}, range: ${rangeSentence(r.sim, D)}`);
   if ((S.fpp.speedScenario && S.fpp.speedScenario !== 'typical') || S.fpp.benchmarkRate > 0) L.push(`- Rate assumption: ${[S.fpp.speedScenario !== 'typical' ? SPEED_SCENARIOS[S.fpp.speedScenario]?.label : '', S.fpp.benchmarkRate > 0 ? `benchmark ${fmt2(S.fpp.benchmarkRate)} patients/site/month` : ''].filter(Boolean).join('; ')}.`);
   if (comparatorBasisNote()) L.push(`- Comparator basis: ${comparatorBasisNote()}`);
+  if (bmNote()) L.push(`- Benchmark data: ${bmNote()}`);
   for (const r of H) L.push(`- ${r.label} (${r.sub}): ${pct(r.sim.prob)} of simulated runs reach the target by month ${D}; median time to target ${medTxt(r.sim)} from study start (incl. country start-up); ${fpiTxt(r.sim)} months from the first patient.`);
   for (const g of rangeModel()) {
     L.push('', `Forecast ranges: ${g.title}${R ? ` (${fmt(R.N)} runs each)` : ''}`);
@@ -6543,12 +6549,13 @@ document.addEventListener('change', async e => {
       if (t.id === 'fileEmr') { setStatus(0, `Reading ${f.name}…`); await ingestText(text, f.name); setStatus(0, `Ingested ${fmt(S.patients.length)} records from ${S.ingest.format} in ${Math.round(S.ingest.ms)} ms.`); }
       else if (t.id === 'fileFeedback') { const n=importFeedback(text); setStatus(5, `Imported ${n} investigator responses (unverified).`); }
       else if (t.id === 'fileMarket') { const n=importMarket(text); setStatus(1, `Imported ${n} market/pipeline evidence records.`); }
+      else if (t.id === 'fileBench') { const B = importBenchmark(text, f.name); S.bmMsg = null; setStatus(1, `Imported benchmark data from ${f.name}: ${fmt(B.rows.length)} rows used, ${fmt(B.skipped.length)} skipped. Check the column mapping under Evidence › Benchmark data.`); }
       else if (t.id === 'fileHist') { harmonize(text); setStatus(1, `Harmonised ${S.history.trials} trials from ${f.name}.`); }
       else if (t.id === 'fileProto') await loadProtocolFile(text, f.name);
       else if (t.id === 'fileRules') { importRules(text); setStatus(2, `Imported rule set from ${f.name}.`); }
       else if (t.id === 'fileIntel') { const n = importIntel(text); setStatus(1, `Imported evidence for ${n} countries from ${f.name}.`); }
       recompute();
-    } catch (err) { setStatus({ fileEmr: 0, fileHist: 1, fileProto: 2, fileIntel: 1, fileRules: 2, fileFeedback: 5, fileMarket: 1 }[t.id], `${f.name}: ${err.message}`, true); }
+    } catch (err) { setStatus({ fileEmr: 0, fileHist: 1, fileProto: 2, fileIntel: 1, fileRules: 2, fileFeedback: 5, fileMarket: 1, fileBench: 1 }[t.id], `${f.name}: ${err.message}`, true); }
     renderAll();
   }
 });
@@ -7189,6 +7196,7 @@ function projectPanel() {
     const n = S.patients?.length || 0;
     h += `<div class="callout" role="region" aria-label="Save project"><b>Save project</b>
       <div class="note" style="margin-top:4px"><b>Saved:</b> study setup and protocol; criteria with review metadata and baseline; assumptions and parameters; input provenance; registry snapshot${S.web ? ` (ClinicalTrials.gov, ${esc(S.web.fetchedAt.slice(0, 10))})` : ''}; country evidence records, reviews and review log; country decisions and decision log; user-selected footprint (without its result); site history, investigator responses (with their original reported values) and market records; site decisions and decision log; response reviews and review log; the log of reviewed values applied to country overrides; custom vocabulary.</div>
+      ${S.benchmark ? `<div class="note"><b>Benchmark data:</b> the ${fmt(S.benchmark.rows.length)} normalized rows from ${esc(S.benchmark.label)} (${esc(S.benchmark.fileName)}) and the benchmark log are included. Vendor exports may be licensed: check your licence before sharing the file.</div>` : ''}
       <div class="note"><b>Never saved:</b> API keys or other credentials, raw patient extract text, forecasts and other results (recalculated after loading), browser caches and session settings.</div>
       ${n ? `<label class="note" style="display:block;margin-top:6px"><input type="checkbox" data-proj-patients ${U.includePatients ? 'checked' : ''}> Include the ${fmt(n)} pseudonymized patient-level records${S.provenance?.patients ? ' (synthetic)' : ''} from ${esc(S.ingest?.source || 'the import')}</label>
         <div class="note">${U.includePatients ? '<b>Included:</b> these records are pseudonymized, not anonymized. They keep ages, sites, diagnoses, medications, lab values and month-level clinical timing. Treat the file as sensitive and check your data-sharing rules and approvals before sharing it with anyone.' : '<b>Omitted (default):</b> the file will contain no patient-level records. After loading, re-import the extract under Study to restore the patient cohort and its forecast; everything else is restored.'}</div>` : '<div class="note">No patient-level records are loaded, so none can be saved.</div>'}
@@ -8973,7 +8981,7 @@ document.addEventListener('change', e => {
  * ===================================================================== */
 const TASKS = {
   study: { label: 'Study', steps: [0, 2], step: 2, eyebrow: 'Study · protocol, study details and optional supporting data', title: 'Protocol and eligibility criteria', render: () => ws3() + supportingDataHtml() + studyReviewHtml() },
-  evidence: { label: 'Evidence', steps: [1], step: 1, eyebrow: 'Evidence · registry results, country research, sources and gaps', title: 'Registry results and country evidence', render: () => wsWeb() + comparablePanel() + marketPanel() },
+  evidence: { label: 'Evidence', steps: [1], step: 1, eyebrow: 'Evidence · registry results, country research, sources and gaps', title: 'Registry results and country evidence', render: () => wsWeb() + benchmarkPanel() + comparablePanel() + marketPanel() },
   plan: { label: 'Plan', steps: [3, 4], step: 3, needsSim: true, eyebrow: 'Plan · forecast, allocation, country and site decisions', title: 'Forecast and footprint', render: () => planHtml() },
   report: { label: 'Report', steps: [5], step: 5, needsSim: true, eyebrow: 'Report · decision summary, risks, questionnaires and exports', title: 'Decision report', render: () => reportHtml() },
 };
@@ -9174,6 +9182,251 @@ const LOAD_STEP = S.step;
 
 /* ---------- Task workspace regression tests (run with the view tests) ---------- */
 const TASK_DYNAMIC = '#workspace, #startHere, #taskTabs, #taskActions, #settingsAI, #projectPanel, #demoBanner';
+/* =====================================================================
+ * v0.9.5 Benchmark data import (Citeline, Medidata or your own export)
+ * Enrollment benchmarks exported from a commercial feasibility tool or from the sponsor's own trials, as CSV/TSV text.
+ * Vendor export layouts are not fixed and are not known to this application: common column names are detected and the
+ * mapping is shown for the user to confirm or correct. Nothing is applied automatically. The overall benchmark can replace
+ * the registry level (the existing “Benchmark rate”), and country benchmarks can be written to the country rate overrides,
+ * each with a reason, logged with the previous value and revertible. Licensed data stays in this browser and in project
+ * files the user saves.
+ * ===================================================================== */
+const BM_SOURCES = { citeline: 'Citeline export', medidata: 'Medidata export', internal: 'Internal (own trials)', other: 'Other source' };
+const BM_ROLES = [
+  ['country', 'Country (required)'], ['rate', 'Rate (patients/site per month or year)'], ['patients', 'Patients randomized or enrolled'], ['sites', 'Number of sites'],
+  ['months', 'Enrollment months'], ['siteMonths', 'Site-months'], ['sf', 'Screen-failure rate'], ['trial', 'Trial or study ID'], ['trialCount', 'Number of trials (weight)'],
+];
+const BM_MAX_ROWS = 50000;
+const bmKey = h => String(h).toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '');
+// Score each header for each role; the best-scoring unused header is proposed
+function bmDetect(headers) {
+  const score = {
+    country: k => /(^|_)country(_name)?$|^country(_|$)/.test(k) && !/count_|countries|number|^n_/.test(k) ? 10 : 0,
+    rate: k => { if (!/(rate|per_site|psm|pspm|pspy|per_month|per_year)/.test(k) || /fail|drop|withdr|discont|activation|startup|start_up|cycle/.test(k)) return 0; let s = 3; if (/random/.test(k)) s += 3; if (/enrol|recruit|accru|patient|subject|pt/.test(k)) s += 2; if (/screen/.test(k)) s -= 2; if (/site/.test(k)) s += 1; return s; },
+    patients: k => { if (!/(random|enrol|patients|subjects|participants|accrual|accrued)/.test(k) || /rate|per_|psm|target|planned|expected|projected|screen|month|duration|date|period|time/.test(k)) return 0; return /random/.test(k) ? 6 : /actual/.test(k) ? 5 : 4; },
+    sites: k => /(^|_)(sites?|site_count|number_of_sites|n_sites|active_sites|investigator_sites|centres|centers)$|^(number_of|n|num|total|active)_(sites|centres|centers)/.test(k) && !/per_site|site_month|site_name|site_id|site_number/.test(k) ? 8 : 0,
+    months: k => /(months?|duration|period)/.test(k) && !/site_?month|per_month|per_site|rate|start|end|date|psm/.test(k) ? (/enrol|recruit|accru/.test(k) ? 7 : 4) : 0,
+    siteMonths: k => /site_?months?$|site_?months?_/.test(k) && !/per_/.test(k) ? 9 : 0,
+    sf: k => /screen.*fail|^sf(_|$)|screen_failure|screenfail/.test(k) ? 8 : 0,
+    trial: k => /(^|_)(nct(_id|_number)?|trial_id|study_id|protocol_id|protocol_number|protocol|trial|study|trial_name|study_name)$/.test(k) && !/count|number_of|^n_|num_/.test(k) ? 6 : 0,
+    trialCount: k => /(number_of_(trials|studies)|^n_(trials|studies)|(trial|study)_count|num_(trials|studies)|^(trials|studies)$)/.test(k) ? 7 : 0,
+  };
+  const used = new Set(), map = {};
+  for (const [role] of BM_ROLES) {
+    let best = null;
+    for (const h of headers) { if (used.has(h)) continue; const s = score[role](bmKey(h)); if (s > 0 && (!best || s > best.s)) best = { h, s }; }
+    if (best) { map[role] = best.h; used.add(best.h); }
+  }
+  const rk = map.rate ? bmKey(map.rate) : '';
+  return { map, unit: /year|annual|_yr|pspy/.test(rk) ? 'year' : 'month', counts: /screen/.test(rk) && !/random/.test(rk) ? 'screened' : 'randomized' };
+}
+function bmNumber(v, decComma) {
+  let s = String(v ?? '').trim(); if (!s || /^(na|n\/a|nr|-|—|null|none)$/i.test(s)) return null;
+  s = decComma ? s.replace(/\.(?=\d{3}(\D|$))/g, '').replace(',', '.') : s.replace(/,(?=\d{3}(\D|$))/g, '');
+  const pct = /%\s*$/.test(s), n = parseFloat(s.replace(/[^0-9.\-eE]/g, ''));
+  return Number.isFinite(n) ? { n, pct } : null;
+}
+// Normalized rows from the raw table with the current mapping; every skipped row keeps its reason
+function bmNormalize(raw, cfg) {
+  const { map, unit, counts, decComma } = cfg, rows = [], skipped = [];
+  const get = (r, role) => map[role] ? r[map[role]] : undefined;
+  raw.forEach((r, i) => {
+    const line = i + 2, cRaw = String(get(r, 'country') ?? '').trim();
+    if (!cRaw) { skipped.push({ line, why: 'no country' }); return; }
+    const country = normCountry(cRaw), num = role => bmNumber(get(r, role), decComma)?.n ?? null;
+    const patients = num('patients'), sites = num('sites'), months = num('months'), siteMonths0 = num('siteMonths');
+    const sfV = bmNumber(get(r, 'sf'), decComma), sf = sfV ? (sfV.pct || sfV.n > 1 ? sfV.n / 100 : sfV.n) : null;
+    const siteMonths = siteMonths0 ?? (sites > 0 && months > 0 ? sites * months : null);
+    let rate = num('rate'), basis = 'rate column';
+    if (rate != null && unit === 'year') rate /= 12;
+    if (rate == null && patients != null && siteMonths > 0) { rate = patients / siteMonths; basis = siteMonths0 != null ? 'patients ÷ site-months' : 'patients ÷ (sites × months)'; }
+    if (rate != null && counts === 'screened' && basis === 'rate column') {
+      if (sf == null || !(sf >= 0 && sf < 1)) { skipped.push({ line, why: 'screened rate without a valid screen-failure rate' }); return; }
+      rate *= 1 - sf; basis = 'screened rate × (1 − screen failure)';
+    }
+    if (rate == null) { skipped.push({ line, why: 'no rate, and no patients with sites and months (or site-months)' }); return; }
+    if (!(rate > 0)) { skipped.push({ line, why: 'rate is zero or negative' }); return; }
+    if (rate > OV_SCHEMA.rate.max) { skipped.push({ line, why: `rate above ${OV_SCHEMA.rate.max} per site per month (check the unit)` }); return; }
+    const tc = num('trialCount');
+    rows.push({ country, trial: String(get(r, 'trial') ?? '').trim() || null, rate: +rate.toFixed(4), patients, siteMonths: siteMonths != null ? +siteMonths.toFixed(2) : null, weight: tc > 0 ? tc : 1, basis });
+  });
+  return { rows, skipped };
+}
+// Pooled rate (Σ patients ÷ Σ site-months) when every row has both, otherwise the weighted median of row rates
+function bmAggregate(rows) {
+  if (!rows.length) return null;
+  const pooled = rows.every(r => r.patients != null && r.siteMonths > 0);
+  let rate;
+  if (pooled) rate = rows.reduce((a, r) => a + r.patients, 0) / rows.reduce((a, r) => a + r.siteMonths, 0);
+  else { const s = [...rows].sort((a, b) => a.rate - b.rate), tot = s.reduce((a, r) => a + r.weight, 0); let acc = 0; rate = s[s.length - 1].rate; for (const r of s) { acc += r.weight; if (acc >= tot / 2) { rate = r.rate; break; } } }
+  const trials = new Set(rows.map(r => r.trial).filter(Boolean)).size;
+  return { rate: +rate.toFixed(4), rows: rows.length, trials: trials || rows.reduce((a, r) => a + (r.weight || 1), 0), pooled };
+}
+function bmSummary(B = S.benchmark) {
+  if (!B?.rows?.length) return null;
+  const by = {}; for (const r of B.rows) (by[r.country] ||= []).push(r);
+  return { overall: bmAggregate(B.rows), countries: Object.entries(by).map(([country, rs]) => ({ country, ...bmAggregate(rs) })).sort((a, b) => b.rows - a.rows || a.country.localeCompare(b.country)) };
+}
+function bmDelimiter(text) {
+  const first = String(text).replace(/^﻿/, '').split(/\r?\n/)[0] || '';
+  const n = d => first.split(d).length - 1, c = { ',': n(','), ';': n(';'), '\t': n('\t') };
+  return Object.entries(c).sort((a, b) => b[1] - a[1])[0][1] ? Object.entries(c).sort((a, b) => b[1] - a[1])[0][0] : ',';
+}
+function importBenchmark(text, fileName = 'benchmark.csv', source = null) {
+  const delim = bmDelimiter(text), raw = parseCSV(String(text), delim);
+  if (!raw.length) throw new Error('The benchmark file has no data rows.');
+  if (raw.length > BM_MAX_ROWS) throw new Error(`The benchmark file has ${fmt(raw.length)} rows; at most ${fmt(BM_MAX_ROWS)} are read. Filter the export (indication, phase, years) first.`);
+  const headers = Object.keys(raw[0]), det = bmDetect(headers);
+  const decComma = delim !== ',' && raw.slice(0, 200).some(r => Object.values(r).some(v => /^-?\d+,\d+$/.test(String(v).trim())));
+  const guess = source || (/citeline|trialtrove|sitetrove/i.test(fileName) ? 'citeline' : /medidata|intelligent|rave/i.test(fileName) ? 'medidata' : 'other');
+  const cfg = { map: det.map, unit: det.unit, counts: det.counts, decComma, delim };
+  S.benchmarkRaw = { raw, headers, fileName };
+  const prevLog = S.benchmark?.applied || [];
+  S.benchmark = { source: guess, label: BM_SOURCES[guess], fileName, importedAt: nowIso(), headers, mapping: { ...det.map }, unit: det.unit, counts: det.counts, decComma, delim, rows: [], skipped: [], applied: prevLog };
+  bmRecalc();
+  return S.benchmark;
+}
+function bmRecalc() {
+  const B = S.benchmark, R = S.benchmarkRaw; if (!B || !R) return;
+  const { rows, skipped } = bmNormalize(R.raw, { map: B.mapping, unit: B.unit, counts: B.counts, decComma: B.decComma });
+  B.rows = rows; B.skipped = skipped;
+}
+// The latest active benchmark entry for a country override (or the overall rate), if it still holds the applied value
+function bmActive(kind, country = null) {
+  const log = S.benchmark?.applied || [];
+  for (let i = log.length - 1; i >= 0; i--) {
+    const a = log[i]; if (a.kind !== kind || (kind === 'country' && a.country !== country)) continue;
+    const cur = kind === 'overall' ? S.fpp.benchmarkRate : S.fpOv?.[country]?.rate;
+    return !a.reverted && cur === a.value ? a : null;
+  }
+  return null;
+}
+function bmApplyOverall(reason) {
+  reason = String(reason || '').trim(); const sm = bmSummary();
+  if (!sm) return { error: 'Import benchmark data first.' };
+  if (reason.length < 3) return { error: 'A reason is required to use the imported benchmark.' };
+  const v = +sm.overall.rate.toFixed(3), c = checkNum(String(v), FPP_SCHEMA.benchmarkRate); if (c.error) return { error: `Not applied: ${c.error}.` };
+  const previous = S.fpp.benchmarkRate ?? null; if (previous === c.value) return { error: 'Nothing changed: the benchmark rate already holds this value.' };
+  S.fpp.benchmarkRate = c.value;
+  const at = nowIso(), entry = { id: 'bm-' + fnvHex(JSON.stringify(['overall', v, at, S.benchmark.applied.length])), kind: 'overall', country: null, value: c.value, previous, source: S.benchmark.label, fileName: S.benchmark.fileName, rows: sm.overall.rows, reason, at, reverted: null };
+  S.benchmark.applied.push(entry); return { ok: true, entry, job: recompute() };
+}
+function bmApplyCountries(countries, reason) {
+  reason = String(reason || '').trim(); const sm = bmSummary();
+  if (!sm) return { error: 'Import benchmark data first.' };
+  if (!S.fp) return { error: 'Run the analysis first: country rates are written to the country footprint model.' };
+  if (reason.length < 3) return { error: 'A reason is required to apply benchmark country rates.' };
+  const want = new Set(countries || []), done = [], skipped = [], at = nowIso();
+  for (const c of sm.countries) {
+    if (!want.has(c.country)) continue;
+    const row = S.fp.rowsBy[c.country];
+    if (!row || row.assumed) { skipped.push(`${c.country}: not modelled from registry data`); continue; }
+    const v = +c.rate.toFixed(3), chk = checkNum(String(v), OV_SCHEMA.rate); if (chk.error) { skipped.push(`${c.country}: ${chk.error}`); continue; }
+    const ov = S.fpOv[c.country] = S.fpOv[c.country] || {}, previous = ov.rate ?? null;
+    if (previous === chk.value) { skipped.push(`${c.country}: already ${fmt2(chk.value)}`); continue; }
+    ov.rate = chk.value;
+    S.benchmark.applied.push({ id: 'bm-' + fnvHex(JSON.stringify([c.country, v, at, S.benchmark.applied.length])), kind: 'country', country: c.country, value: chk.value, previous, modelValueBefore: +row.rate.toFixed(4), source: S.benchmark.label, fileName: S.benchmark.fileName, rows: c.rows, reason, at, reverted: null });
+    done.push(c.country);
+  }
+  if (!done.length) return { error: skipped.length ? `Nothing applied: ${skipped.join('; ')}.` : 'Select at least one country.' };
+  return { ok: true, applied: done, skipped, job: recompute() };
+}
+function bmRevert(id, reason) {
+  reason = String(reason || '').trim();
+  const a = (S.benchmark?.applied || []).find(x => x.id === id); if (!a) return { error: 'That entry is not in the benchmark log.' };
+  if (a.reverted) return { error: 'Already reverted.' };
+  if (bmActive(a.kind, a.country) !== a) return { error: a.kind === 'overall' ? 'The benchmark rate was changed after this value was applied; edit it under Plan instead.' : `The ${a.country} override was changed after this value was applied; edit it in the country table instead.` };
+  if (reason.length < 3) return { error: 'A reason is required to revert a benchmark value.' };
+  if (a.kind === 'overall') S.fpp.benchmarkRate = a.previous;
+  else { const ov = S.fpOv[a.country] = S.fpOv[a.country] || {}; if (a.previous == null) delete ov.rate; else ov.rate = a.previous; if (!Object.keys(ov).length) delete S.fpOv[a.country]; }
+  a.reverted = { at: nowIso(), reason };
+  return { ok: true, job: recompute() };
+}
+function bmClear() { S.benchmark = null; S.benchmarkRaw = null; S.bmDraft = {}; }
+function bmTemplateCSV() {
+  return toCSV([
+    { country: 'United States', trial_id: 'NCT00000001', patients_randomized: 420, sites: 60, enrollment_months: 14, rate_per_site_month: '', screen_failure_rate: '', note: 'one row per trial and country' },
+    { country: 'Germany', trial_id: 'NCT00000001', patients_randomized: 96, sites: 15, enrollment_months: 12, rate_per_site_month: '', screen_failure_rate: '', note: '' },
+    { country: 'Poland', trial_id: '', patients_randomized: '', sites: '', enrollment_months: '', rate_per_site_month: 0.62, screen_failure_rate: '', note: 'or one summary row per country with a rate' },
+  ], ['country', 'trial_id', 'patients_randomized', 'sites', 'enrollment_months', 'rate_per_site_month', 'screen_failure_rate', 'note']);
+}
+// Plain text for Plan (escaped there) and the executive summary
+function bmNote() {
+  const B = S.benchmark, sm = bmSummary(); if (!B || !sm) return '';
+  const ov = bmActive('overall'), cs = (B.applied || []).filter(a => a.kind === 'country' && bmActive('country', a.country) === a).map(a => a.country);
+  const used = [ov ? `overall ${fmt2(ov.value)} patients/site/month as the benchmark rate` : '', cs.length ? `country rates for ${cs.join(', ')}` : ''].filter(Boolean).join('; ');
+  return `${B.label} (${B.fileName}, imported ${B.importedAt.slice(0, 10)}): ${fmt(sm.overall.rows)} rows, ${fmt(sm.countries.length)} countries, overall ${fmt2(sm.overall.rate)} patients/site/month. ${used ? `Used: ${used}.` : 'Not applied to the forecast yet (Evidence › Benchmark data).'}`;
+}
+function benchmarkPanel() {
+  const B = S.benchmark, R = S.benchmarkRaw, sm = bmSummary(), d = S.bmDraft || (S.bmDraft = {}), sel = d.sel || (d.sel = {});
+  const head = `<div class="ws-section" id="benchmarkPanel"><span class="eyebrow">Benchmark data: Citeline, Medidata or your own export</span>
+    <p class="note">Import enrollment benchmarks exported from a feasibility tool (for example Citeline Trialtrove/Sitetrove or Medidata Study Feasibility) or from your own trials, saved as CSV or tab/semicolon-separated text (save Excel exports as CSV). One row per trial and country, or one summary row per country. Column names are detected and shown below for you to confirm; nothing changes the forecast until you apply it with a reason. Licensed vendor data stays in this browser and in project files you save: check your licence before sharing them.</p>
+    <div class="btn-row"><button class="btn btn-sm" data-act="bmTemplate">Benchmark CSV template</button><button class="btn btn-sm" data-act="pick" data-target="fileBench">Import benchmark data…</button>${B ? '<button class="btn btn-sm btn-ghost" data-act="bmClear">Clear benchmark data</button>' : ''}</div>`;
+  if (!B) return head + '</div>';
+  const opts = role => `<option value="">— not in file —</option>${(B.headers || []).map(h => `<option value="${esc(h)}" ${B.mapping[role] === h ? 'selected' : ''}>${esc(h)}</option>`).join('')}`;
+  const mapping = R ? `<div class="field-grid" style="margin-top:8px">
+      <label class="field">Source<select data-bm="source">${Object.entries(BM_SOURCES).map(([k, v]) => `<option value="${k}" ${B.source === k ? 'selected' : ''}>${esc(v)}</option>`).join('')}</select></label>
+      ${BM_ROLES.map(([role, label]) => `<label class="field">${esc(label)}<select data-bm-map="${role}">${opts(role)}</select></label>`).join('')}
+      <label class="field">Rate unit<select data-bm="unit"><option value="month" ${B.unit === 'month' ? 'selected' : ''}>per site per month</option><option value="year" ${B.unit === 'year' ? 'selected' : ''}>per site per year</option></select></label>
+      <label class="field">Rate counts<select data-bm="counts"><option value="randomized" ${B.counts === 'randomized' ? 'selected' : ''}>randomized or enrolled patients</option><option value="screened" ${B.counts === 'screened' ? 'selected' : ''}>screened patients (needs screen-failure rate)</option></select></label>
+    </div>` : `<p class="note">Column mapping as imported (${esc(Object.entries(B.mapping).map(([k, v]) => `${k}: ${v}`).join(', '))}). Re-import the file to change it.</p>`;
+  const reasons = {}; for (const s of B.skipped || []) reasons[s.why] = (reasons[s.why] || 0) + 1;
+  const status = `<p class="note"><b>${esc(B.fileName)}</b>: ${fmt(B.rows.length)} rows used${B.skipped?.length ? `, ${fmt(B.skipped.length)} skipped (${esc(Object.entries(reasons).map(([w, n]) => `${n} ${w}`).join('; '))})` : ''}.${B.decComma ? ' Decimal commas read.' : ''}${!B.mapping.country ? ' <b>Map the country column.</b>' : ''}</p>`;
+  if (!sm) return head + mapping + status + '</div>';
+  const rowsHtml = sm.countries.map(c => {
+    const row = S.fp?.rowsBy?.[c.country], active = bmActive('country', c.country), modelled = !!row && !row.assumed;
+    if (sel[c.country] == null) sel[c.country] = modelled;
+    return `<tr><td><label><input type="checkbox" data-bm-sel="${esc(c.country)}" ${sel[c.country] && modelled ? 'checked' : ''} ${modelled ? '' : 'disabled'}> ${esc(c.country)}</label></td><td class="num">${fmt2(c.rate)}</td><td class="num">${fmt(c.rows)}${c.trials > c.rows ? ` · ${fmt(c.trials)} trials` : ''}${!c.pooled && c.rows > 1 ? ' (median)' : ''}</td><td class="num">${row ? fmt2(active ? active.modelValueBefore : row.rate) : '—'}</td><td class="num">${row ? `${fmt2(c.rate / (active ? active.modelValueBefore : row.rate))}×` : 'not modelled'}</td><td>${active ? `applied ${esc(active.at.slice(0, 10))}` : S.fpOv?.[c.country]?.rate != null ? `override ${fmt2(S.fpOv[c.country].rate)}` : ''}</td></tr>`;
+  }).join('');
+  const ovA = bmActive('overall');
+  const log = (B.applied || []).slice().reverse().map(a => `<li>${esc(a.at.slice(0, 16).replace('T', ' '))} · ${a.kind === 'overall' ? 'benchmark rate' : esc(a.country)} ${fmt2(a.value)} (was ${a.previous == null ? 'not set' : fmt2(a.previous)}) · ${esc(a.reason)}${a.reverted ? ` · reverted ${esc(a.reverted.at.slice(0, 10))}: ${esc(a.reverted.reason)}` : bmActive(a.kind, a.country) === a ? ` <input class="brief" style="width:180px" data-bm-draft="rev:${esc(a.id)}" placeholder="Reason to revert" value="${esc(d['rev:' + a.id] || '')}"> <button class="btn btn-sm btn-ghost" data-act="bmRevert" data-id="${esc(a.id)}">Revert</button>` : ' · superseded'}</li>`).join('');
+  return head + mapping + status + `
+    <div class="stat-grid"><div class="stat"><span class="eyebrow">Overall benchmark</span><b>${fmt2(sm.overall.rate)}</b><span class="note">patients/site/month · ${fmt(sm.overall.rows)} rows${sm.overall.pooled ? ', pooled' : ', median'}</span></div>
+      <div class="stat"><span class="eyebrow">Registry comparators</span><b>${S.fp ? fmt2(ovA ? (ovA.previous ?? S.fp.globalRate) : S.fp.globalRate) : '—'}</b><span class="note">${S.fp ? 'comparator rate used by the model' : 'run the analysis to compare'}</span></div></div>
+    <div class="btn-row"><input class="brief" style="min-width:240px" data-bm-draft="overall" placeholder="Reason (e.g. Citeline benchmark, phase 3 since 2015)" value="${esc(d.overall || '')}"><button class="btn btn-sm" data-act="bmApplyOverall">${ovA ? 'Re-apply' : 'Use'} the overall benchmark as the benchmark rate</button><span class="note">Re-centres every country on it, keeping the registry's country differences.</span></div>
+    <div class="tbl-wrap"><table class="tbl"><thead><tr><th>Country</th><th class="num">Benchmark</th><th class="num">Rows</th><th class="num">Model rate</th><th class="num">Benchmark ÷ model</th><th>Override</th></tr></thead><tbody>${rowsHtml}</tbody></table></div>
+    <div class="btn-row"><input class="brief" style="min-width:240px" data-bm-draft="countries" placeholder="Reason for the ticked countries" value="${esc(d.countries || '')}"><button class="btn btn-sm" data-act="bmApplyCountries" ${S.fp ? '' : 'disabled'}>Apply country rates to the ticked countries</button><span class="note">Writes each country's benchmark to its rate override (replaces the model rate there).</span></div>
+    ${S.bmMsg ? `<div class="status-line ${S.bmMsg.err ? 'err' : ''}" role="status">${esc(S.bmMsg.text)}</div>` : ''}
+    ${log ? `<details class="claude"><summary>Benchmark log (${(B.applied || []).length})</summary><ul class="note">${log}</ul></details>` : ''}</div>`;
+}
+Object.assign(ACTIONS, {
+  bmTemplate: () => download('benchmark_template.csv', bmTemplateCSV(), 'text/csv'),
+  bmClear: () => { if ((S.benchmark?.applied || []).some(a => !a.reverted && bmActive(a.kind, a.country) === a) && !UX_IO.confirm('Values from this benchmark are still applied to the forecast. Clearing the data keeps them (and their log) in the overrides only. Clear the benchmark data?')) return; bmClear(); S.bmMsg = { text: 'Benchmark data cleared. Applied values stay in the overrides until you change them under Plan.' }; renderAll(); },
+  bmApplyOverall: () => { const r = bmApplyOverall(S.bmDraft?.overall); S.bmMsg = r.error ? { text: r.error, err: true } : { text: `Benchmark rate set to ${fmt2(r.entry.value)} patients/site/month; the forecast is recalculating.` }; if (r.ok) S.bmDraft.overall = ''; renderAll(); },
+  bmApplyCountries: () => { const sel = S.bmDraft?.sel || {}; const r = bmApplyCountries(Object.keys(sel).filter(c => sel[c]), S.bmDraft?.countries); S.bmMsg = r.error ? { text: r.error, err: true } : { text: `Applied benchmark rates to ${r.applied.join(', ')}${r.skipped.length ? `; skipped ${r.skipped.join('; ')}` : ''}. The forecast is recalculating.` }; if (r.ok) S.bmDraft.countries = ''; renderAll(); },
+  bmRevert: a => { const id = a.dataset.id, r = bmRevert(id, S.bmDraft?.['rev:' + id]); S.bmMsg = r.error ? { text: r.error, err: true } : { text: 'Reverted; the forecast is recalculating.' }; renderAll(); },
+});
+document.addEventListener('input', e => { const t = e.target; if (t.dataset?.bmDraft != null) (S.bmDraft = S.bmDraft || {})[t.dataset.bmDraft] = t.value; });
+document.addEventListener('change', e => {
+  const t = e.target, B = S.benchmark; if (!B) return;
+  if (t.dataset?.bmMap) { if (t.value) for (const [k, v] of Object.entries(B.mapping)) if (v === t.value && k !== t.dataset.bmMap) delete B.mapping[k]; if (t.value) B.mapping[t.dataset.bmMap] = t.value; else delete B.mapping[t.dataset.bmMap]; bmRecalc(); S.bmMsg = null; renderAll(); }
+  else if (t.dataset?.bm === 'source') { B.source = t.value; B.label = BM_SOURCES[t.value] || 'Other source'; renderAll(); }
+  else if (t.dataset?.bm === 'unit' || t.dataset?.bm === 'counts') { B[t.dataset.bm] = t.value; bmRecalc(); renderAll(); }
+  else if (t.dataset?.bmSel != null) { (S.bmDraft.sel = S.bmDraft.sel || {})[t.dataset.bmSel] = t.checked; }
+});
+// Project file: optional section, additive to tfp-project/1 (normalized rows, mapping and log; the raw file is not stored)
+PROJECT_SECTIONS.push('benchmark');
+const validateProjectStateR4 = validateProjectState;
+validateProjectState = function (st, P) {
+  const e = validateProjectStateR4(st, P), b = st.benchmark;
+  if (b != null) {
+    if (!isObj(b)) e.push('benchmark must be an object');
+    else {
+      if (!BM_SOURCES[b.source]) e.push('benchmark.source is not a known source');
+      if (typeof b.fileName !== 'string' || !validIso(b.importedAt)) e.push('benchmark needs a file name and an import date');
+      if (!isObj(b.mapping) || !Object.values(b.mapping).every(v => typeof v === 'string')) e.push('benchmark.mapping is malformed');
+      if (!Array.isArray(b.rows) || b.rows.length > BM_MAX_ROWS) e.push('benchmark.rows must be a list');
+      else { const bad = b.rows.findIndex(r => !isObj(r) || typeof r.country !== 'string' || !r.country || typeof r.rate !== 'number' || !(r.rate > 0) || checkNum(String(r.rate), OV_SCHEMA.rate).error || (r.weight != null && !(r.weight > 0))); if (bad >= 0) e.push(`benchmark row ${bad + 1} needs a country and a rate above 0 and at most ${OV_SCHEMA.rate.max}`); }
+      if (b.applied != null && !(Array.isArray(b.applied) && b.applied.every(a => isObj(a) && typeof a.id === 'string' && ['overall', 'country'].includes(a.kind) && typeof a.value === 'number' && a.value > 0 && String(a.reason || '').trim().length >= 3 && validIso(a.at) && (a.kind === 'overall' || typeof a.country === 'string')))) e.push('benchmark.applied is malformed');
+    }
+  }
+  return e;
+};
+const candidateFromProjectR4 = candidateFromProject;
+candidateFromProject = function (P, st) { const out = candidateFromProjectR4(P, st); if (st.benchmark) out.c.benchmark = { ...st.benchmark, label: BM_SOURCES[st.benchmark.source], skipped: st.benchmark.skipped || [], applied: st.benchmark.applied || [] }; return out; };
+const buildReportR5 = buildReport;
+buildReport = function () { const r = buildReportR5(); if (S.benchmark) r.benchmark = { source: S.benchmark.label, fileName: S.benchmark.fileName, importedAt: S.benchmark.importedAt, mapping: S.benchmark.mapping, summary: bmSummary(), log: S.benchmark.applied, note: 'User-supplied benchmark data (vendor export or internal), not independently verified; applied only where logged.' }; return r; };
+
 UI_TESTS.push(
  ['Tasks','Each tab renders its panels without errors, duplicate element ids or clashes with the page and Settings',async()=>{
   await uiFixture();const staticIds=new Set([...document.querySelectorAll('[id]')].filter(el=>!el.closest(TASK_DYNAMIC)).map(el=>el.id));
@@ -9343,6 +9596,35 @@ UI_TESTS.push(
    ACTIONS.runAll=async()=>{};S.setup.msg=null;S.step=2;await runGuided();
    return [moved.step===TASKS.evidence.step && /Report is ready/.test(moved.msg||'') && S.step===5,JSON.stringify({moved,after:S.step})];}
   finally{el.remove();ACTIONS.runAll=realRun;ACTIONS.sensitivity=realSens;}
+ }],
+ // v0.9.5: benchmark data import (Citeline, Medidata or own exports)
+ ['Benchmark','Exports are read with detected columns: trial-by-country rows are pooled, semicolon files with decimal commas, yearly rates and screened counts are converted, and bad rows are skipped with reasons',async()=>{
+  const cite='Trial ID,Country,Patients Enrolled (Actual),Number of Sites,Enrollment Duration (Months)\nNCT1,United States,180,45,14\nNCT1,Germany,60,12,13\nNCT2,United States,120,40,16\nNCT2,,20,5,10\nNCT3,Germany,0,6,10\nNCT3,Germany,9999,1,1';
+  const B1=importBenchmark(cite,'citeline_trialtrove.csv'),s1=bmSummary(),us=s1.countries.find(c=>c.country==='United States');
+  const ok1=B1.source==='citeline' && B1.mapping.patients && B1.mapping.sites && B1.mapping.months && B1.mapping.trial && Math.abs(us.rate-300/(45*14+40*16))<1e-4 && us.pooled && B1.skipped.length===3 && B1.skipped.some(x=>/no country/.test(x.why)) && B1.skipped.some(x=>/zero/.test(x.why)) && B1.skipped.some(x=>/above 50/.test(x.why));
+  const B2=importBenchmark('Country;Enrollment Rate (pts/site/month);Number of Studies\nPoland;0,74;11\nSpain;1.234,5;1','medidata_export.csv'),s2=bmSummary();
+  const ok2=B2.source==='medidata' && B2.decComma && s2.countries.find(c=>c.country==='Poland').rate===0.74 && B2.skipped.length===1 && s2.overall.trials===11;
+  const B3=importBenchmark('country\tscreened per site per year\tscreen failure rate\nItaly\t12\t25%\nFrance\t6\t','own.tsv',null),s3=bmSummary();
+  const ok3=B3.counts==='screened' && B3.unit==='year' && Math.abs(s3.countries.find(c=>c.country==='Italy').rate-0.75)<1e-4 && B3.skipped.length===1 && /screen-failure/.test(B3.skipped[0].why);
+  return [ok1 && ok2 && ok3,JSON.stringify({m1:B1.mapping,us,sk1:B1.skipped,ok2,dec:B2.decComma,s3:s3.countries,sk3:B3.skipped})];
+ }],
+ ['Benchmark','Benchmarks change the forecast only when applied with a reason; country rates become labelled overrides, unmodelled countries are skipped, and reverting restores the previous value',async()=>{
+  await r2Ready();const m0=S.fp.rowsBy.Aland.rate;
+  importBenchmark('country,rate_per_site_month\nAland,1.25\nBorduria,0.9\nZembla,2','bench.csv','internal');
+  const noReason=bmApplyCountries(['Aland','Zembla'],'');const r=bmApplyCountries(['Aland','Zembla'],'Internal phase 3 data');await r.job;await waitFor(()=>simulationResultsCurrent());
+  const aland=S.fp.rowsBy.Aland,ok1=!!noReason.error && r.ok && r.applied.join()==='Aland' && /Zembla/.test(r.skipped.join()) && aland.rate===1.25 && aland.rateBasis==='benchmark import' && (S.risks||[]).some(f=>/imported benchmark data/.test(f.title));
+  const o=bmApplyOverall('Internal benchmark');await o.job;await waitFor(()=>simulationResultsCurrent());const ok2=S.fpp.benchmarkRate===o.entry.value && o.entry.previous===null;
+  const id=S.benchmark.applied.find(a=>a.country==='Aland').id,rv=bmRevert(id,'Too few trials');await rv.job;await waitFor(()=>simulationResultsCurrent());
+  const ok3=rv.ok && S.fpOv.Aland===undefined && S.fp.rowsBy.Aland.rateBasis!=='benchmark import';
+  S.fpp.benchmarkRate=0.5;const late=bmRevert(o.entry.id,'Changed my mind');
+  return [ok1 && ok2 && ok3 && !!late.error && m0!==1.25,JSON.stringify({noReason,applied:r.applied,basis:aland.rateBasis,bench:S.fpp.benchmarkRate,ok3,late})];
+ }],
+ ['Benchmark','Normalized benchmark rows, mapping and log round-trip in the project file (not the raw export); a damaged row refuses the file',async()=>{
+  pjUserFixture();importBenchmark('Country,Patients Randomized,Site-Months\nAland,50,40\nBorduria,30,60','sitetrove_export.csv');S.fpOv.Aland={rate:1.25};S.benchmark.applied.push({id:'bm-test',kind:'country',country:'Aland',value:1.25,previous:null,reason:'Fixture benchmark',at:nowIso(),reverted:null});
+  const before=JSON.stringify({rows:S.benchmark.rows,mapping:S.benchmark.mapping,applied:S.benchmark.applied});const x=await pjRoundTrip(false);
+  const after=JSON.stringify({rows:S.benchmark?.rows,mapping:S.benchmark?.mapping,applied:S.benchmark?.applied});const panel=benchmarkPanel();
+  const bad=await pjRehash(x.text,P=>{P.state.benchmark.rows[1].rate=-1;});const r2=await parseProjectText(bad);
+  return [!x.r.error && before===after && S.benchmarkRaw===null && /Re-import the file to change it/.test(panel) && bmActive('country','Aland')?.id==='bm-test' && !!r2.error && /benchmark row 2/.test(r2.error),JSON.stringify({err:x.r.error,same:before===after,raw:S.benchmarkRaw,bad:r2.error})];
  }],
 );
 

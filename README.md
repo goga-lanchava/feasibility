@@ -5,8 +5,8 @@ A single-file browser tool for clinical-trial feasibility and bid-defense work, 
 
 - **Study**: indication, target, enrollment window, planned number of sites, proposed countries and protocol eligibility
   criteria (rule-based parser, optional Claude or Gemini parsing), with a review checklist before running.
-- **Evidence**: ClinicalTrials.gov landscape (competing and completed trials, countries, sites), optional country research
-  and historical site data.
+- **Evidence**: ClinicalTrials.gov landscape (competing and completed trials, countries, sites), optional country research,
+  historical site data and benchmark data imported from Citeline, Medidata or your own trials (CSV export).
 - **Plan**: Monte Carlo enrollment forecast for the sponsor footprint and a recommended footprint, assumptions, what-ifs,
   country and site decisions.
 - **Report**: decision summary (range first), risks, site questionnaires and exports.

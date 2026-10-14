@@ -9355,9 +9355,19 @@ function bmNormalize(raw, cfg) {
     if (rate == null) { skipped.push({ line, why: 'no rate, and no patients with sites and months (or site-months)' }); return; }
     if (!(rate > 0)) { skipped.push({ line, why: 'rate is zero or negative' }); return; }
     if (rate > OV_SCHEMA.rate.max) { skipped.push({ line, why: `rate above ${OV_SCHEMA.rate.max} per site per month (check the unit)` }); return; }
-    rows.push({ country, trial: String(get(r, 'trial') ?? '').trim() || null, rate: +rate.toFixed(4), patients, siteMonths: siteMonths != null ? +siteMonths.toFixed(2) : null, weight: tc > 0 ? tc : 1, basis });
+    // A rate-column row that also has patients and site-months keeps how those counts were combined, so a disagreement can be shown (bmConflict)
+    const countBasis = !basis.startsWith('patients') && patients != null && siteMonths > 0 ? (siteMonths0 != null ? 'patients ÷ site-months' : 'patients ÷ (sites × months)') : null;
+    rows.push({ line, country, trial: String(get(r, 'trial') ?? '').trim() || null, rate: +rate.toFixed(4), patients, siteMonths: siteMonths != null ? +siteMonths.toFixed(2) : null, weight: tc > 0 ? tc : 1, basis, ...(countBasis && { countBasis }) });
   });
   return { rows, skipped };
+}
+// A row's rate column (after unit and screen-failure conversion) against its own patients ÷ site-months. The rate column is still the
+// one used; a material disagreement is flagged in the panel, not resolved: more than 25% apart and at least 0.01 patients/site/month
+const BM_CONFLICT_RATIO = 1.25, BM_CONFLICT_MIN = 0.01;
+const bmCountRate = r => r.basis && !r.basis.startsWith('patients') && r.patients != null && r.patients >= 0 && r.siteMonths > 0 ? r.patients / r.siteMonths : null;
+function bmConflict(r) {
+  const c = bmCountRate(r); if (c == null || !(r.rate > 0)) return false;
+  return Math.abs(r.rate - c) >= BM_CONFLICT_MIN && (c === 0 || Math.max(r.rate, c) / Math.min(r.rate, c) > BM_CONFLICT_RATIO);
 }
 // Pooled rate (Σ patients ÷ Σ site-months) when every row's rate was derived from those counts, otherwise the weighted median of
 // the normalized row rates (a row whose rate came from the rate column keeps that basis: unit and screen-failure conversions apply)
@@ -9368,7 +9378,7 @@ function bmAggregate(rows) {
   if (pooled) rate = rows.reduce((a, r) => a + r.patients, 0) / rows.reduce((a, r) => a + r.siteMonths, 0);
   else { const s = [...rows].sort((a, b) => a.rate - b.rate), tot = s.reduce((a, r) => a + r.weight, 0); let acc = 0; rate = s[s.length - 1].rate; for (const r of s) { acc += r.weight; if (acc >= tot / 2) { rate = r.rate; break; } } }
   const trials = new Set(rows.map(r => r.trial).filter(Boolean)).size;
-  return { rate: +rate.toFixed(4), rows: rows.length, trials: trials || rows.reduce((a, r) => a + (r.weight || 1), 0), pooled };
+  return { rate: +rate.toFixed(4), rows: rows.length, trials: trials || rows.reduce((a, r) => a + (r.weight || 1), 0), pooled, conflicts: rows.filter(bmConflict).length };
 }
 function bmSummary(B = S.benchmark) {
   if (!B?.rows?.length) return null;
@@ -9495,13 +9505,17 @@ function benchmarkPanel() {
   const reasons = {}; for (const s of B.skipped || []) reasons[s.why] = (reasons[s.why] || 0) + 1;
   const status = `<p class="note"><b>${esc(B.fileName)}</b>: ${fmt(B.rows.length)} rows used${B.skipped?.length ? `, ${fmt(B.skipped.length)} skipped (${esc(Object.entries(reasons).map(([w, n]) => `${n} ${w}`).join('; '))})` : ''}.${B.decComma ? ' Decimal commas read.' : ''}${!B.mapping.country ? ' <b>Map the country column.</b>' : ''}</p>`;
   if (!sm) return head + mapping + status + '</div>';
+  // Rows whose rate column and counts disagree: shown with both values and the one used, never resolved silently
+  const conf = B.rows.filter(bmConflict), MAXC = 8;
+  const conflicts = conf.length ? `<div class="callout warn" role="note" style="border:1px solid var(--warning,#b7791f);border-radius:8px;padding:10px 12px;margin:8px 0"><b>Rate column and counts disagree in ${fmt(conf.length)} row${conf.length === 1 ? '' : 's'}</b> (more than ${Math.round((BM_CONFLICT_RATIO - 1) * 100)}% apart). The rate column is used for ${conf.length === 1 ? 'this row' : 'these rows'}, after the rate unit and counts settings. ${R ? 'Check those settings, or set “Rate” to “— not in file —” to use the counts instead (rows without counts are then skipped).' : 'Re-import the file to change the mapping.'}${conf.some(r => r.countBasis === 'patients ÷ (sites × months)') ? ' Sites × months assumes every site enrolled for the whole period, which understates the rate when sites opened at different times.' : ''}
+    <ul class="note" style="margin:6px 0 0">${conf.slice(0, MAXC).map(r => { const c = bmCountRate(r), x = Math.max(r.rate, c) / Math.min(r.rate, c); return `<li>${r.line ? `line ${r.line} · ` : ''}${esc(r.country)}${r.trial ? ` · ${esc(r.trial)}` : ''}: rate column ${fmt2(r.rate)}, ${esc(r.countBasis || 'patients ÷ site-months')} ${fmt2(c)} patients/site/month${isFinite(x) ? ` (${fmt1(x)}× apart)` : ''}</li>`; }).join('')}${conf.length > MAXC ? `<li>… and ${fmt(conf.length - MAXC)} more</li>` : ''}</ul></div>` : '';
   const rowsHtml = sm.countries.map(c => {
     const row = S.fp?.rowsBy?.[c.country], active = bmActive('country', c.country), modelled = !!row && !row.assumed;
     if (sel[c.country] == null) sel[c.country] = modelled;
-    return `<tr><td><label><input type="checkbox" data-bm-sel="${esc(c.country)}" ${sel[c.country] && modelled ? 'checked' : ''} ${modelled ? '' : 'disabled'}> ${esc(c.country)}</label></td><td class="num">${fmt2(c.rate)}</td><td class="num">${fmt(c.rows)}${c.trials > c.rows ? ` · ${fmt(c.trials)} trials` : ''}${!c.pooled && c.rows > 1 ? ' (median)' : ''}</td><td class="num">${row ? fmt2(active ? active.modelValueBefore : row.rate) : '—'}</td><td class="num">${row ? `${fmt2(c.rate / (active ? active.modelValueBefore : row.rate))}×` : 'not modelled'}</td><td>${active ? `applied ${esc(active.at.slice(0, 10))}` : S.fpOv?.[c.country]?.rate != null ? `override ${fmt2(S.fpOv[c.country].rate)}` : ''}</td></tr>`;
+    return `<tr><td><label><input type="checkbox" data-bm-sel="${esc(c.country)}" ${sel[c.country] && modelled ? 'checked' : ''} ${modelled ? '' : 'disabled'}> ${esc(c.country)}</label></td><td class="num">${fmt2(c.rate)}</td><td class="num">${fmt(c.rows)}${c.trials > c.rows ? ` · ${fmt(c.trials)} trials` : ''}${!c.pooled && c.rows > 1 ? ' (median)' : ''}${c.conflicts ? ` <span class="chip med" title="The rate column and patients ÷ site-months disagree in ${c.conflicts} row${c.conflicts === 1 ? '' : 's'} (listed above)">${fmt(c.conflicts)} disagree</span>` : ''}</td><td class="num">${row ? fmt2(active ? active.modelValueBefore : row.rate) : '—'}</td><td class="num">${row ? `${fmt2(c.rate / (active ? active.modelValueBefore : row.rate))}×` : 'not modelled'}</td><td>${active ? `applied ${esc(active.at.slice(0, 10))}` : S.fpOv?.[c.country]?.rate != null ? `override ${fmt2(S.fpOv[c.country].rate)}` : ''}</td></tr>`;
   }).join('');
   const ovA = bmActive('overall');
-  return head + mapping + status + `
+  return head + mapping + status + conflicts + `
     <div class="stat-grid"><div class="stat"><span class="eyebrow">Overall benchmark</span><b>${fmt2(sm.overall.rate)}</b><span class="note">patients/site/month · ${fmt(sm.overall.rows)} rows${sm.overall.pooled ? ', pooled' : ', median'}</span></div>
       <div class="stat"><span class="eyebrow">Registry comparators</span><b>${S.fp ? fmt2(ovA ? (ovA.previous ?? S.fp.globalRate) : S.fp.globalRate) : '—'}</b><span class="note">${S.fp ? 'comparator rate used by the model' : 'run the analysis to compare'}</span></div></div>
     <div class="btn-row"><input class="brief" style="min-width:240px" data-bm-draft="overall" placeholder="Reason (e.g. Citeline benchmark, phase 3 since 2015)" value="${esc(d.overall || '')}"><button class="btn btn-sm" data-act="bmApplyOverall">${ovA ? 'Re-apply' : 'Use'} the overall benchmark as the benchmark rate</button><span class="note">Re-centres every country on it, keeping the registry's country differences.</span></div>
@@ -9800,6 +9814,18 @@ UI_TESTS.push(
   const rv=bmRevert(id,'Rows were cleared');await rv.job;const after=benchmarkPanel(),noteAfter=bmNote();ACTIONS.bmClear();const ok3=rv.ok && /applied any more/.test(after) && noteAfter==='' && S.benchmark===null && S.fpOv.Aland===undefined;
   return [ok1 && ok2 && ok3,JSON.stringify({ok1,ok2,ok3,basis:S.fp?.rowsBy?.Aland?.rateBasis,err:x.r.error,msg})];
  }],
+ // v0.9.7: a rate column that disagrees with the same row's counts is flagged, not silently preferred
+ ['Benchmark','A rate column more than 25% away from the same row\'s patients ÷ site-months is flagged in the panel and the country table with both values and the one used; agreeing, count-only and rate-only rows are not flagged',async()=>{
+  const B=importBenchmark('Trial,Country,Rate per site month,Patients Randomized,Site-Months\nT1,Aland,0.5,50,100\nT2,Aland,0.52,50,100\nT3,Borduria,1.0,12,100\nT4,Zembla,,30,60\nT5,Kurland,0.9,,\nT6,Genovia,0.5,41,100\nT7,Sylvania,0.5,39,100','bench.csv','internal'),s=bmSummary();
+  const view=()=>{const d=document.createElement('div');d.innerHTML=benchmarkPanel();const row=c=>[...d.querySelectorAll('#benchmarkPanel tbody tr')].find(tr=>tr.cells[0].textContent.trim()===c)?.textContent||'';return {txt:d.textContent.replace(/\s+/g,' '),row};};
+  const v1=view(),conf=B.rows.filter(bmConflict).map(r=>r.country+':'+r.line).join(),cs=c=>s.countries.find(x=>x.country===c);
+  const ok1=B.rows.length===7 && conf==='Borduria:4,Sylvania:8' && s.overall.conflicts===2 && cs('Borduria').conflicts===1 && cs('Borduria').rate===1 && cs('Aland').conflicts===0 && cs('Zembla').conflicts===0
+   && /Rate column and counts disagree in 2 rows/.test(v1.txt) && /The rate column is used for these rows/.test(v1.txt) && /line 4 · Borduria · T3: rate column 1\.00, patients ÷ site-months 0\.12/.test(v1.txt) && !/Genovia ·/.test(v1.txt) && /1 disagree/.test(v1.row('Borduria')) && !/disagree/.test(v1.row('Aland')) && !/Sites × months assumes/.test(v1.txt);
+  importBenchmark('country,rate per site per month,patients randomized,sites,enrollment months\nRuritania,1.0,60,10,12','own.csv','internal');const v2=view();
+  const ok2=/Rate column and counts disagree in 1 row\b/.test(v2.txt) && /patients ÷ \(sites × months\) 0\.50/.test(v2.txt) && /Sites × months assumes/.test(v2.txt);
+  importBenchmark('country,rate_per_site_month\nAland,1.25','bench.csv','internal');const ok3=!/disagree/.test(view().txt) && bmSummary().overall.conflicts===0;
+  return [ok1 && ok2 && ok3,JSON.stringify({ok1,ok2,ok3,conf,overall:s.overall,v1:v1.txt.slice(0,900)})];
+ }],
 );
 
 loadVocab();
@@ -9856,6 +9882,63 @@ document.addEventListener('click',e=>{const t=e.target.closest?.('.cf-help-trigg
 document.addEventListener('keydown',e=>{const t=e.target.closest?.('.cf-help-trigger');if(e.key==='Escape'){hide();if(t)t.blur();}else if(t&&(e.key==='Enter'||e.key===' ')){e.preventDefault();if(active===t&&pinned)hide();else show(t,true);}});
 window.addEventListener('resize',position);window.addEventListener('scroll',()=>{if(active)position();},true);
 new MutationObserver(()=>{if(queued)return;queued=true;requestAnimationFrame(()=>{queued=false;scan();});}).observe(document.getElementById('workspace')||document.body,{childList:true,subtree:true});scan();
+})();
+</script>
+<style id="cf-fx-style">
+/* Visual effects: CSS-only or tiny pointer handlers; all off under reduced motion */
+.pipeline-header{position:relative;isolation:isolate;padding:18px 16px;border-radius:var(--r-m);overflow:hidden}
+.pipeline-header::before{content:"";position:absolute;inset:-40%;z-index:-1;pointer-events:none;opacity:.55;
+  background:radial-gradient(40% 50% at 20% 30%,color-mix(in srgb,var(--primary) 38%,transparent),transparent 70%),
+             radial-gradient(35% 45% at 80% 20%,color-mix(in srgb,var(--positive) 26%,transparent),transparent 70%),
+             radial-gradient(40% 50% at 60% 90%,color-mix(in srgb,var(--primary) 22%,transparent),transparent 70%);
+  filter:blur(24px);animation:cfAurora 18s ease-in-out infinite alternate}
+@keyframes cfAurora{to{transform:translate3d(6%,4%,0) rotate(8deg) scale(1.08)}}
+.pipeline-title-row h1{background:linear-gradient(90deg,var(--on-surface) 0 40%,var(--primary) 50%,var(--on-surface) 60% 100%);background-size:250% 100%;
+  -webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;animation:cfShine 6s ease-in-out 1 .4s both}
+@keyframes cfShine{from{background-position:100% 0}to{background-position:0 0}}
+.detail-card,.start-card,.stat{background-image:radial-gradient(260px circle at var(--mx,-999px) var(--my,-999px),color-mix(in srgb,var(--primary) 12%,transparent),transparent 70%)}
+.btn{transition:background .15s,border-color .15s,opacity .15s,transform .15s}
+.btn:active:not(:disabled){transform:scale(.97)}
+.btn-accent:hover:not(:disabled){box-shadow:0 4px 14px color-mix(in srgb,var(--primary) 35%,transparent)}
+.cf-paused .pipeline-header::before,.cf-paused .pipeline-title-row h1{animation-play-state:paused}
+@media (prefers-reduced-motion:reduce){.pipeline-header::before,.pipeline-title-row h1{animation:none}.btn{transition:none}}
+/* Responsive refinements */
+.widget-container{max-width:min(1000px,100%);padding-left:max(16px,env(safe-area-inset-left));padding-right:max(16px,env(safe-area-inset-right))}
+@media (min-width:1200px){.widget-container{max-width:1120px}}
+.menu-pop{max-width:calc(100vw - 32px)}
+img,svg,canvas,video{max-width:100%;height:auto}
+.detail-card,.start-card{min-width:0;overflow-wrap:anywhere}
+.tbl-wrap{-webkit-overflow-scrolling:touch;max-width:100%}
+@media (max-width:640px){
+  .widget-container{padding-top:12px;gap:12px}
+  .pipeline-header{padding:14px 12px}
+  .pipeline-title-row h1{font-size:20px}
+  .pipeline-title-row,.header-actions{width:100%}
+  .detail-card,.start-card,.settings-panel{padding:12px}
+  .stat-grid{grid-template-columns:repeat(auto-fit,minmax(120px,1fr))}
+  .stat .v{font-size:18px}
+  .btn-row>.btn{flex:1 1 auto}
+  .task-actions{padding:10px 12px}
+}
+@media (max-width:380px){
+  .stat-grid,.field-grid{grid-template-columns:1fr}
+  .task-tabs{grid-template-columns:1fr}
+}
+@media (pointer:coarse){
+  .btn,.task-tab,summary.btn{min-height:40px}
+  .field input,.field select{min-height:40px;font-size:16px}
+}
+</style><script id="cf-fx-script">
+(function(){
+if(matchMedia('(prefers-reduced-motion: reduce)').matches)return;
+document.addEventListener('visibilitychange',()=>document.documentElement.classList.toggle('cf-paused',document.hidden));
+if(!matchMedia('(pointer: fine)').matches)return;
+let raf=0,ev=null,last=null;
+document.addEventListener('pointermove',e=>{ev=e;if(raf)return;raf=requestAnimationFrame(()=>{raf=0;
+  const t=ev.target.closest&&ev.target.closest('.stat,.start-card,.detail-card');
+  if(last&&last!==t){last.style.removeProperty('--mx');last.style.removeProperty('--my');}
+  last=t;if(!t)return;const r=t.getBoundingClientRect();
+  t.style.setProperty('--mx',(ev.clientX-r.left)+'px');t.style.setProperty('--my',(ev.clientY-r.top)+'px');});},{passive:true});
 })();
 </script>
 </body>

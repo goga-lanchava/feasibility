@@ -2,23 +2,39 @@
 
 Source: the ChatGPT code evaluation "Revision 2, v0.9.5 compared with v0.9.3" (14 Oct 2026), run against `feasibility-pipeline.html` v0.9.5 (SHA-256 fefaf6ba…).
 Each finding was reproduced in the real app (headless Chromium) or kernel by an independent agent. Each agent then designed a fix and validated it on a copy of the repository against the in-app suites.
-**Status: none of these fixes are applied yet.** Only one fix (F02) has had its independent skeptic review; the rest still need it before merging. The proposed edits are in `review-v095-proposed-fixes.json`.
+**Status (v0.9.6): all 13 fixes are applied, one commit each, in the order F02, F01, F03–F08, N01–N04, D01.** Each proposed fix was reviewed against the current code before it was applied. After every fix the full gate ran and passed: `node tools/build.mjs --check` in sync, `node --test tests/kernels.test.mjs` 10/10, and all 10 in-app suites. No fix was rejected. Where the review found a gap, the fix was extended (see "Applied with changes" below). Release notes: `CHANGELOG-v0.9.6.md`. The original proposed edits remain in `review-v095-proposed-fixes.json` for reference.
 
-| ID | Finding | Verdict | Severity | Fix validated on a copy | Skeptic review |
-|---|---|---|---|---|---|
-| F01 | AI lab thresholds keep non-canonical units | real-defect | medium | yes | not done |
-| F02 | FHIR entered-in-error observations count for eligibility | real-defect | high | yes | agrees, fix OK |
-| F03 | Strict range endpoints (> 18 and < 65) become inclusive | real-defect | medium | yes | not done |
-| F04 | Keep-minimum allocations bypass the regional cap | real-defect | medium | yes | not done |
-| F05 | Keep-minimum allocations bypass "Only researched" | real-but-minor | low | yes | not done |
-| F06 | Reversed trial dates produce usable recruitment rates | real-defect | medium | yes | not done |
-| F07 | CSV with unclosed quotes or extra fields accepted | real-defect | medium | yes | not done |
-| F08 | Impossible as-of dates (2026-99-99) accepted | real-but-minor | low | yes | not done |
-| N01 | Benchmark pooling overrides the normalized rate basis | real-defect | medium | yes | not done |
-| N02 | Benchmark number parsing too permissive (e.g. "12abc", negative counts) | real-defect | medium | yes | not done |
-| N03 | Clearing benchmark data deletes the audit log while rates stay applied | real-defect | medium | yes | not done |
-| N04 | Chained benchmark revert fails | real-defect | medium | yes | not done |
-| D01 | Report text still says "no retrospective validation" | real-but-minor | low | yes | not done |
+| ID | Finding | Verdict | Severity | Fix validated on a copy | Review before applying | Applied in v0.9.6 |
+|---|---|---|---|---|---|---|
+| F01 | AI lab thresholds keep non-canonical units | real-defect | medium | yes | agrees; extended | yes, cc81b7c |
+| F02 | FHIR entered-in-error observations count for eligibility | real-defect | high | yes | agrees, fix OK | yes, 85b117d |
+| F03 | Strict range endpoints (> 18 and < 65) become inclusive | real-defect | medium | yes | agrees; extended | yes, 245560b |
+| F04 | Keep-minimum allocations bypass the regional cap | real-defect | medium | yes | agrees, fix OK | yes, 60395fa |
+| F05 | Keep-minimum allocations bypass "Only researched" | real-but-minor | low | yes | agrees, fix OK (note only; allocation kept) | yes, 3b21191 |
+| F06 | Reversed trial dates produce usable recruitment rates | real-defect | medium | yes | agrees, fix OK | yes, daf18df |
+| F07 | CSV with unclosed quotes or extra fields accepted | real-defect | medium | yes | agrees, fix OK | yes, cfabe94 |
+| F08 | Impossible as-of dates (2026-99-99) accepted | real-but-minor | low | yes | agrees, fix OK | yes, 8360882 |
+| N01 | Benchmark pooling overrides the normalized rate basis | real-defect | medium | yes | agrees, fix OK | yes, 405ce99 |
+| N02 | Benchmark number parsing too permissive (e.g. "12abc", negative counts) | real-defect | medium | yes | agrees; merged with N01 | yes, 86751d4 |
+| N03 | Clearing benchmark data deletes the audit log while rates stay applied | real-defect | medium | yes | agrees; extended | yes, a0ae36e |
+| N04 | Chained benchmark revert fails | real-defect | medium | yes | agrees, fix OK | yes, a56c386 |
+| D01 | Report text still says "no retrospective validation" | real-but-minor | low | yes | agrees, fix OK (figures checked against CHANGELOG-v0.9.4) | yes, f194206 |
+
+### Applied with changes
+- **F01:**
+  - the ULN check matches "xULN" without a space (`/uln/i` instead of `/\buln\b/i`);
+  - rules with no threshold number, and unitless scores (UNITLESS: ECOG, INR and similar), skip the unit check because no other scale exists;
+  - the AI item is copied (`c = { ...c, ...u.values }`) instead of modified in place;
+  - the new test has two more cases: ALT ≤ 2.5 xULN, and ECOG with the unit "ECOG grade".
+- **F03:** the reversed-range split ("> 160 or < 90") deletes `minStrict`/`maxStrict` from its one-sided rules. The PARSER_TESTS BMI expectation was changed from the inclusive "BMI BETWEEN 17 AND 35" to "(BMI > 17 AND BMI < 35)". The old expectation recorded the bug, so the new one is stricter, not looser.
+- **F04/F05:** both change the same keep-minimum loop. F05's note was placed after F04's new region bookkeeping, and `node tools/build.mjs` regenerated the embedded kernel and its sha256 each time. The kernel sha after F04 matched the proposal (9ef33162…).
+- **N02:** combined with N01 on the `pooled` line. In the new test, the control row "Genovia" has no rate cell, so its rate comes from counts and the `pooled` assertion still holds under N01. With a rate cell the row would deliberately use the median instead.
+- **N03:** four additions:
+  - `bmNote()` keeps naming the source, with "rows cleared", while values are still applied. Before, the summary and bid-summary "Benchmark data" line disappeared after clearing.
+  - The panel text depends on whether anything is still applied.
+  - The JSON report carries `rowsClearedAt`, and the project-export note no longer says "the 0 normalized rows".
+  - `PROJECT-SCHEMA.md` documents `clearedAt`. The test checks all of these.
+- **F06 back-test impact:** checked against `analysis/comparators-asof-start.json.gz`. Of 9,703 comparators, 7 have a reversed or zero-length span, and none had ACTUAL enrollment with at least 3 sites, so none ever produced a rate. The 57-trial figures are unchanged by this fix.
 
 ## Details
 

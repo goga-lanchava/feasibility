@@ -1922,7 +1922,8 @@ function parseComparison(raw) {
   if (best.op !== 'between') {
     const lower = best.op === '>=' || best.op === '>';
     const other = cands.find(c => c !== best && c.op !== 'between' && c.index >= best.end && (lower ? (c.op === '<=' || c.op === '<') : (c.op === '>=' || c.op === '>')));
-    if (other) best = { op: 'between', min: lower ? best.value : other.value, max: lower ? other.value : best.value, index: best.index, end: other.end };
+    // Keep each endpoint's strictness: "> 18 and < 65" excludes 18 and 65
+    if (other) { const lo = lower ? best : other, hi = lower ? other : best; best = { op: 'between', min: lo.value, max: hi.value, index: best.index, end: other.end }; if (lo.op === '>') best.minStrict = true; if (hi.op === '<') best.maxStrict = true; }
   }
   best.unitText = s.slice(best.end, best.end + 28);
   return best;
@@ -2223,12 +2224,12 @@ function parseCriterionLine(line, section, ctx = {}) {
       if (!ref) flags.push('ulnUnknown');
     } else {
       normalizeUnits(lm.key, cmp);
-      if (cmp.op === 'between') Object.assign(c, { min: cmp.min, max: cmp.max }); else c.value = cmp.value;
+      if (cmp.op === 'between') Object.assign(c, { min: cmp.min, max: cmp.max }, cmp.minStrict && { minStrict: true }, cmp.maxStrict && { maxStrict: true }); else c.value = cmp.value;
       if (cmp.unitNote) c.unitNote = cmp.unitNote;
     }
     // "> 160 or < 90" read as a range with min > max: it is two outside limits (either one excludes; for an inclusion, either qualifies)
     if (c.op === 'between' && c.min > c.max) {
-      const hi = { ...c, op: '>', value: c.min }, lo = { ...c, op: '<', value: c.max }; delete hi.min; delete hi.max; delete lo.min; delete lo.max;
+      const hi = { ...c, op: '>', value: c.min }, lo = { ...c, op: '<', value: c.max }; for (const k of ['min', 'max', 'minStrict', 'maxStrict']) { delete hi[k]; delete lo[k]; }
       if (section === 'exc') { labCrits.push({ c: hi, at: lm.index }, { c: lo, at: lm.index }); }
       else labCrits.push({ c: { type: 'group', logic: 'OR', field: 'any', op: 'any', items: [{ ...hi, kind: 'inc' }, { ...lo, kind: 'inc' }] }, at: lm.index });
       spans.push([lm.index, lm.index + lm.len + seg.length]);
@@ -2582,7 +2583,7 @@ const PARSER_TESTS = [
   ['protocol', 'Inclusion Criteria: - Type 2 diabetes - Age 50 years or older Exclusion Criteria: - Type 1 diabetes - eGFR below 30', ['HAS_DX(t2dm)', 'NOT HAS_DX(t1dm)', 'NOT eGFR < 30', 'age >= 50']],
   // v0.9.2: second retrospective round (MONALEESA-2, STEP 1, CLARITY AD, KEYNOTE-024; registry eligibility text)
   ['inc', 'Male or female participants aged greater than or equal to (\\>=) 50 and less than or equal to (\\<=) 90 years', ['age BETWEEN 50 AND 90']],
-  ['inc', 'Body mass index (BMI) greater than (\\>)17 and less than (\\<) 35 at Screening', ['BMI BETWEEN 17 AND 35']],
+  ['inc', 'Body mass index (BMI) greater than (\\>)17 and less than (\\<) 35 at Screening', ['(BMI > 17 AND BMI < 35)']],
   ['exc', 'Systolic blood pressure \\>160 or \\<90 mmHg.', ['NOT Systolic BP < 90', 'NOT Systolic BP > 160']],
   ['inc', 'Histological or cytological diagnosis of Stage IV NSCLC lacking epidermal growth factor receptor (EGFR) sensitizing mutation and/or anaplastic lymphoma kinase (ALK) translocation', ['BIOMARKER(alk) = negative', 'BIOMARKER(egfr) = negative', 'HAS_DX(nsclc)', 'STATUS(metastatic)']],
   ['inc', 'Female participants must have a negative pregnancy test at screening if of childbearing potential', ['MANUAL_REVIEW']],
@@ -2654,14 +2655,16 @@ function applyParse(res) {
 }
 function critLogic(c) {
   const lbl = c.type === 'lab' ? (LABS[c.field]?.label || c.field) : c.type === 'lines' ? 'PRIOR_LINES' : c.field;
-  const num = () => c.op === 'between' ? `${lbl} BETWEEN ${c.min} AND ${c.max}` : `${lbl} ${c.op} ${c.value ?? '?'}${c.ulnMultiple ? ` (${c.ulnMultiple}×${c.uLabel || 'ULN'})` : ''}`;
+  // BETWEEN is inclusive; a range with an excluded endpoint is spelled out (parenthesised so NOT/ANY bind to the whole range)
+  const range = l => c.minStrict || c.maxStrict ? `(${l} ${c.minStrict ? '>' : '>='} ${c.min} AND ${l} ${c.maxStrict ? '<' : '<='} ${c.max})` : `${l} BETWEEN ${c.min} AND ${c.max}`;
+  const num = () => c.op === 'between' ? range(lbl) : `${lbl} ${c.op} ${c.value ?? '?'}${c.ulnMultiple ? ` (${c.ulnMultiple}×${c.uLabel || 'ULN'})` : ''}`;
   let expr;
   switch (c.type) {
     case 'age': case 'lab': case 'lines': expr = num(); break;
     case 'condition': expr = c.excludesIndication ? `HAS_DX(${c.field} EXCEPT STUDY_INDICATION)` : `HAS_DX(${c.field})`; break;
     case 'medication': expr = `ON_MED(${c.field})`; break;
     case 'sex': expr = `sex = '${c.value}'`; break;
-    case 'biomarker': expr = c.op === 'eq' ? `BIOMARKER(${c.field}) = ${c.valueText}` : c.op === 'between' ? `BIOMARKER(${c.field}) BETWEEN ${c.min} AND ${c.max}` : `BIOMARKER(${c.field}) ${c.op} ${c.value}`; break;
+    case 'biomarker': expr = c.op === 'eq' ? `BIOMARKER(${c.field}) = ${c.valueText}` : c.op === 'between' ? range(`BIOMARKER(${c.field})`) : `BIOMARKER(${c.field}) ${c.op} ${c.value}`; break;
     case 'status': expr = `STATUS(${c.field})`; break;
     case 'group': expr = `${(c.logic || (c.op === 'all' ? 'AND' : 'OR')) === 'AND' ? 'ALL' : 'ANY'}(${c.items.map(it => critLogic({ ...it, kind: 'inc' })).join(', ')})`; break;
     default: expr = 'MANUAL_REVIEW';
@@ -2681,7 +2684,7 @@ const Bo = b => b == null ? Un('value not comparable') : b ? Tr : Fa;
 const notR = r => r.s === 'T' ? Fa : r.s === 'F' ? Tr : r;
 function cmpNum(v, c) {
   if (v == null || !isFinite(v)) return null;
-  switch (c.op) { case '>=': return v >= c.value; case '>': return v > c.value; case '<=': return v <= c.value; case '<': return v < c.value; case 'between': return v >= c.min && v <= c.max; }
+  switch (c.op) { case '>=': return v >= c.value; case '>': return v > c.value; case '<=': return v <= c.value; case '<': return v < c.value; case 'between': return (c.minStrict ? v > c.min : v >= c.min) && (c.maxStrict ? v < c.max : v <= c.max); }
   return null;
 }
 const cmp = cmpNum;
@@ -2893,7 +2896,7 @@ function validateCriterion(c, path = 'criterion', top = true) {
   if (top && !['inc', 'exc'].includes(c.kind)) P_('kind must be “inc” or “exc”');
   const numCheck = () => {
     if (!NUM_OPS.includes(c.op)) { P_(`operator “${c.op}” is not valid for ${c.type}`); return; }
-    if (c.op === 'between') { if (!isFinite(c.min) || !isFinite(c.max) || c.min == null || c.max == null) P_('range needs numeric min and max'); else if (typeof c.min !== 'number' || typeof c.max !== 'number') P_('range limits must be numbers, not strings'); else if (c.min > c.max) P_(`reversed range (${c.min} > ${c.max})`); }
+    if (c.op === 'between') { if (!isFinite(c.min) || !isFinite(c.max) || c.min == null || c.max == null) P_('range needs numeric min and max'); else if (typeof c.min !== 'number' || typeof c.max !== 'number') P_('range limits must be numbers, not strings'); else if (c.min > c.max) P_(`reversed range (${c.min} > ${c.max})`); else if ([c.minStrict, c.maxStrict].some(x => x != null && typeof x !== 'boolean')) P_('range endpoint strictness must be true or false'); else if (c.min === c.max && (c.minStrict || c.maxStrict)) P_(`empty range (${c.min} with an excluded endpoint)`); }
     else if (c.value != null && typeof c.value !== 'number') P_('threshold must be a number, not a string');
     else if (c.value == null || !isFinite(c.value)) { if (!(c.type === 'lab' && isFinite(c.ulnMultiple) && c.ulnMultiple > 0)) P_('numeric comparison needs a threshold'); }
   };
@@ -2990,14 +2993,15 @@ function computeCohort(criteriaOverride = null) {
 }
 function critLabel(c) {
   const kind = c.kind === 'inc' ? 'INC' : 'EXC';
-  const rng = l => `${l} ${c.op === 'between' ? `${c.min}–${c.max}` : `${c.op} ${c.value ?? '?'}`}`;
+  const span = () => c.minStrict || c.maxStrict ? `${c.minStrict ? '>' : '≥'} ${c.min} and ${c.maxStrict ? '<' : '≤'} ${c.max}` : `${c.min}–${c.max}`;
+  const rng = l => `${l} ${c.op === 'between' ? span() : `${c.op} ${c.value ?? '?'}`}`;
   switch (c.type) {
     case 'group': return `${kind} · ${(c.logic || (c.op === 'all' ? 'AND' : 'OR')) === 'AND' ? 'All of' : 'Any of'} ${c.items.map(it => critLabel({ ...it, kind: 'inc' }).replace(/^INC · /, '')).join(' / ')}`;
     case 'age': return `${kind} · ${rng('Age')}`;
     case 'lab': return `${kind} · ${rng(LABS[c.field]?.label || c.field)}`;
     case 'lines': return `${kind} · ${rng('Prior lines')}`;
     case 'sex': return `${kind} · Sex = ${c.value}`;
-    case 'biomarker': return `${kind} · ${BIOMARKERS[c.field]?.label || c.field} ${c.op === 'eq' ? c.valueText : c.op === 'between' ? `${c.min}–${c.max}` : `${c.op} ${c.value}`}`;
+    case 'biomarker': return `${kind} · ${BIOMARKERS[c.field]?.label || c.field} ${c.op === 'eq' ? c.valueText : c.op === 'between' ? span() : `${c.op} ${c.value}`}`;
     case 'status': return `${kind} · ${STATUS[c.field]?.label || c.field}`;
     case 'manual': return `${kind} · Manual review`;
   }
@@ -4457,6 +4461,16 @@ const ENGINE_TESTS = [
   ['7 · Validation', 'A numeric comparison with a null threshold or a reversed range is rejected', async () => {
     const a = validateCriterion({ kind: 'inc', type: 'lab', field: 'hba1c', op: '>=', value: null }), b = validateCriterion({ kind: 'inc', type: 'age', field: 'age', op: 'between', min: 80, max: 18 });
     return [a.length > 0 && b.length > 0, `${a[0]}; ${b[0]}`];
+  }],
+  ['7 · Validation', 'Strict range endpoints stay exclusive in evaluation, logic text and validation', async () => {
+    const [age] = parseCriterionLine('Age > 18 and < 65 years', 'inc'), [half] = parseCriterionLine('Age ≥ 18 years and < 65 years', 'inc'), [incl] = parseCriterionLine('Age 18 to 65 years', 'inc');
+    const [lab] = parseCriterionLine('HbA1c > 7% and < 10%', 'exc');
+    const ageAt = (c, v) => evalNode(c, { age: v }, {}).s, labAt = v => evalTop(lab, { labObs: { hba1c: [{ value: v, status: 'ok', monthsAgo: 0 }] } }, {}).s;
+    const got = { age: [18, 18.5, 64.9, 65].map(v => ageAt(age, v)), half: [18, 65].map(v => ageAt(half, v)), incl: [18, 65].map(v => ageAt(incl, v)), lab: [7, 8, 10].map(labAt), logic: [age, half, incl, lab].map(critLogic),
+      empty: validateCriterion({ kind: 'inc', type: 'age', field: 'age', op: 'between', min: 50, max: 50, minStrict: true }), bad: validateCriterion({ kind: 'inc', type: 'age', field: 'age', op: 'between', min: 18, max: 65, maxStrict: 'yes' }) };
+    return [got.age.join() === 'F,T,T,F' && got.half.join() === 'T,F' && got.incl.join() === 'T,T' && got.lab.join() === 'T,F,T'
+      && got.logic.join('|') === '(age > 18 AND age < 65)|(age >= 18 AND age < 65)|age BETWEEN 18 AND 65|NOT (HbA1c > 7 AND HbA1c < 10)'
+      && validateCriterion({ ...age, kind: 'inc' }).length === 0 && got.empty.length > 0 && got.bad.length > 0, JSON.stringify(got)];
   }],
   ['7 · Validation', 'Invalid imported data leaves the previous valid analysis intact', async () => {
     const marker = [{ pid: 'KEEP' }]; S.patients = marker; S.intel = { k: { country: 'Keep' } };

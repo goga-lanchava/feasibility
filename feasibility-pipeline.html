@@ -3424,19 +3424,19 @@ function aggregateWeb() {
     }
   }
   const allRates = [];
-  const dq = { completed: W.hist.length, usedForRates: 0, missingDates: 0, noEnrollment: 0, fewSites: 0, estimatedExcluded: 0, estimatedIncluded: 0, longFollowup: 0 };
+  const dq = { completed: W.hist.length, usedForRates: 0, missingDates: 0, noEnrollment: 0, fewSites: 0, estimatedExcluded: 0, estimatedIncluded: 0, longFollowup: 0, badDates: 0 };
   const allItems = [];
   for (const st of W.hist) {
-    const nLoc = st.locs.length; const span = monthsBetween(st.start, st.pcd);
+    const nLoc = st.locs.length; const span = monthsBetween(st.start, st.pcd); const okSpan = Number.isFinite(span) && span > 0; // primary completion on/before start is a registry date error, not a 3-month window
     // Event-driven or long follow-up trials (primary-outcome follow-up ≥ 60% of start → primary completion) recruit for a smaller share of that span
-    st.longFollowup = !!(span && st.followup != null && st.followup >= 0.6 * span);
-    st.enrollMonths = span ? Math.max(3, span * (st.longFollowup ? (S.fpp.enrollShareLong ?? S.fpp.enrollShare) : S.fpp.enrollShare)) : null;
+    st.longFollowup = !!(okSpan && st.followup != null && st.followup >= 0.6 * span);
+    st.enrollMonths = okSpan ? Math.max(3, span * (st.longFollowup ? (S.fpp.enrollShareLong ?? S.fpp.enrollShare) : S.fpp.enrollShare)) : null;
     st.rateProvenance = st.enrollType === 'ACTUAL' ? 'registry-derived proxy using actual total enrollment' : 'estimated enrollment; not actual performance';
     st.siteRate = ((st.enrollType === 'ACTUAL' || S.includeEstimatedRates) && nLoc >= 3 && st.enroll > 0 && st.enrollMonths) ? st.enroll / nLoc / st.enrollMonths : null;
     // pps (v0.9.4): enrollment per listed site, for matching comparators on the planned patients per site
     if (st.siteRate != null) { allRates.push(st.siteRate); allItems.push({ rate: st.siteRate, n: st.enroll, pps: st.enroll / nLoc }); if (st.longFollowup) dq.longFollowup++; }
     if (st.siteRate != null) { dq.usedForRates++; if (st.enrollType !== 'ACTUAL') dq.estimatedIncluded++; }
-    else if (!span) dq.missingDates++; else if (!(st.enroll > 0)) dq.noEnrollment++; else if (nLoc < 3) dq.fewSites++; else dq.estimatedExcluded++;
+    else if (span == null) dq.missingDates++; else if (!okSpan) dq.badDates++; else if (!(st.enroll > 0)) dq.noEnrollment++; else if (nLoc < 3) dq.fewSites++; else dq.estimatedExcluded++;
     const seen = new Set();
     for (const l of st.locs) {
       if (!l.country) continue;
@@ -3998,7 +3998,7 @@ function buildBidSummary() {
       L.push('');
     }
   }
-  if (W.global.dq) L.push(`- Rate data: ${W.global.dq.usedForRates} of ${W.global.dq.completed} completed trials used; excluded ${W.global.dq.estimatedExcluded} with estimated enrollment, ${W.global.dq.missingDates} with missing dates, ${W.global.dq.noEnrollment} without enrollment, ${W.global.dq.fewSites} with fewer than 3 sites.`);
+  if (W.global.dq) L.push(`- Rate data: ${W.global.dq.usedForRates} of ${W.global.dq.completed} completed trials used; excluded ${W.global.dq.estimatedExcluded} with estimated enrollment, ${W.global.dq.missingDates} with missing dates, ${W.global.dq.badDates || 0} with primary completion on or before start,${W.global.dq.noEnrollment} without enrollment, ${W.global.dq.fewSites} with fewer than 3 sites.`);
   L.push('- Only comparator access and start-up from country research change the forecast; prevalence, incidence and standard-of-care findings are context only.');
   if (S.cohort) L.push(`- EMR eligible pool: lower ${fmt(S.cohort.range.lower)} · central assumed ${fmt(S.cohort.range.likely)} · upper ${fmt(S.cohort.range.upper)} of ${fmt(S.cohort.total)} records. EMR forecast basis: **${ELIG_BASIS[S.cohort.basis].label}**. ${S.cohort.scenario.assumption}`);
   L.push('', '## Limitations', '', '- Probabilities are scenario estimates from an unvalidated model (no retrospective validation against recruitment outcomes yet).', '- Registry data lists sites, not site-level enrollment; rates are trial-level averages.', '- Country research is automated desk research with citations; verify key figures before external use.', '- Saturation counts recruiting trials by site status where registries report it.');
@@ -4142,7 +4142,7 @@ function wsFootprint() {
   <div class="btn-row"><button class="btn btn-sm" data-act="sitesNeeded">Find sites needed for 80% probability</button>
     ${N ? `<span class="note">${N.A ? needText(N.A, 'Sponsor countries') + `; ≈${fmt(N.Acap)} experienced sites exist there · ` : ''}${needText(N.B, 'Recommended mix')}</span>` : ''}</div>
   ${statusLine(3)}
-  <div class="note">Model: per-site monthly rate = registry median per-site rate (country, else global) × saturation factor × comparator-access factor; sites activate after country start-up plus a random stagger; Poisson recruitment with log-normal rate uncertainty. Edit any country's rate or start-up under Plan. ${(() => { const q = S.web.global.dq; return q ? `Rates come from ${fmt(q.usedForRates)} of ${fmt(q.completed)} completed trials${q.estimatedIncluded ? ` (${fmt(q.estimatedIncluded)} with estimated enrollment, included by your setting)` : ''}; excluded: ${fmt(q.estimatedExcluded)} estimated enrollment, ${fmt(q.missingDates)} missing start/completion dates, ${fmt(q.noEnrollment)} no enrollment, ${fmt(q.fewSites)} fewer than 3 listed sites. Enrollment is assumed to take ${pct(S.fpp.enrollShare)} of start → primary completion.${S.web.global.medRateIsDefault ? ' <b>No usable completed trials: every country uses the default rate.</b>' : ''}` : ''; })()} Probabilities are scenario estimates from an unvalidated model.</div>
+  <div class="note">Model: per-site monthly rate = registry median per-site rate (country, else global) × saturation factor × comparator-access factor; sites activate after country start-up plus a random stagger; Poisson recruitment with log-normal rate uncertainty. Edit any country's rate or start-up under Plan. ${(() => { const q = S.web.global.dq; return q ? `Rates come from ${fmt(q.usedForRates)} of ${fmt(q.completed)} completed trials${q.estimatedIncluded ? ` (${fmt(q.estimatedIncluded)} with estimated enrollment, included by your setting)` : ''}; excluded: ${fmt(q.estimatedExcluded)} estimated enrollment, ${fmt(q.missingDates)} missing start/completion dates, ${fmt(q.badDates || 0)} primary completion on or before start,${fmt(q.noEnrollment)} no enrollment, ${fmt(q.fewSites)} fewer than 3 listed sites. Enrollment is assumed to take ${pct(S.fpp.enrollShare)} of start → primary completion.${S.web.global.medRateIsDefault ? ' <b>No usable completed trials: every country uses the default rate.</b>' : ''}` : ''; })()} Probabilities are scenario estimates from an unvalidated model.</div>
   ${sensitivityPanel('fp')}${definitionsPanel()}`;
 }
 function compareChart(A, B) {
@@ -5601,6 +5601,11 @@ ENGINE_TESTS.push(
   S.brief.condition='Cond';S.web={comp:[],hist:[tTrial('A1',[['Alpha',4]]),tTrial('A2',[['Alpha',4]]),tTrial('A3',[['Alpha',4]]),tTrial('B1',[['Beta',4]],{enrollType:'ESTIMATED'}),tTrial('C1',[['Gamma',4]],{pcd:''})],query:{},queryFp:null};
   aggregateWeb();computeFootprint(true);const r=S.fp.rowsBy;const q=S.web.global.dq;
   return [r.Alpha.rateBasis==='registry proxy' && r.Beta.rateBasis==='global prior' && r.Beta.evidence.quality==='none' && q.estimatedExcluded===1 && q.missingDates===1 && q.usedForRates===3 && !JSON.stringify(S.fp.rows.map(x=>x.rateBasis)).includes('observed'),JSON.stringify({a:r.Alpha.rateBasis,b:r.Beta.rateBasis,q})];
+ }],
+ ['P2 · Evidence','Reversed or zero-length start → primary completion spans give no rate and are counted as date errors',async()=>{
+  S.brief.condition='Cond';S.web={comp:[],hist:[tTrial('R1',[['Alpha',3]],{start:'2025-01-01',pcd:'2024-01-01',enroll:300}),tTrial('Z1',[['Alpha',3]],{start:'2024-01-01',pcd:'2024-01-01',enroll:300}),tTrial('M1',[['Alpha',3]],{pcd:''}),tTrial('OK',[['Alpha',3]])],query:{},queryFp:null};
+  aggregateWeb();const q=S.web.global.dq;const h=Object.fromEntries(S.web.hist.map(s=>[s.nct,s]));
+  return [h.R1.siteRate===null && h.R1.enrollMonths===null && h.Z1.siteRate===null && h.OK.siteRate>0 && q.badDates===2 && q.missingDates===1 && q.usedForRates===1 && S.web.global.nRates===1 && Math.abs(S.web.global.medRate-h.OK.siteRate)<1e-12,JSON.stringify({q,r:S.web.hist.map(s=>[s.nct,s.enrollMonths,s.siteRate])})];
  }],
  ['P2 · Sites needed','The returned count is evaluated with its own allocation at the validation run count',async()=>{
   const P={...DEFAULT_PARAMS,target:120,deadline:18,sims:2000};const fp=tFpPayload();const res=workerCore().sitesNeededCore(P,{...DEFAULT_FPP},fp);const B=res.B;

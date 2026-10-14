@@ -473,7 +473,7 @@ body[data-view="expert"] .simple-only { display: none !important; }
 <input type="file" id="fileFeedback" accept=".csv,text/csv" hidden><input type="file" id="fileMarket" accept=".csv,text/csv" hidden><input type="file" id="fileRules" accept=".json,application/json" hidden><input type="file" id="fileBench" accept=".csv,.tsv,.txt,text/csv,text/tab-separated-values,text/plain" hidden>
 
 <!-- Numerical engine: generated from src/mc-kernels.js and src/mc-worker.js by `node tools/build.mjs`. Do not edit between these tags. -->
-<script id="mc-kernels" data-sha256="3c776fa1a306a08f3132adc81b07e4819ec482a7b78572855602552ba318467f">
+<script id="mc-kernels" data-sha256="9ef331624ee3091b0335a1cd2d0c5ebe076a3b844d441fff496eaae996eb64be">
 /* mc-kernels — Monte Carlo recruitment kernels for the Trial Feasibility Pipeline (single source of truth).
  * Edit this file, then run `node tools/build.mjs` to embed it in feasibility-pipeline.html.
  * Pure functions: no DOM, no application state, no network, no dynamic code compilation.
@@ -619,19 +619,18 @@ function optimizeAllocCore(F,rows,budget,sponsorAlloc = {}) {
   const perMax = Math.max(F.minSites, Math.floor(F.maxShare * budget));
   const anyIntel = rows.some(r => r.intel);
   rows.forEach(r => { if (r.capOverride && !r.capOverride.applied) diag.notes.push(`${r.country}: cap override ignored, a reason is required`); });
+  // Optional regional cap (v0.9.1; off at 1): no world region takes more than this share of the budget; it also limits the sponsor keep-minimum
+  const regMax = F.maxRegionShare > 0 && F.maxRegionShare < 1 ? Math.max(F.minSites, Math.floor(F.maxRegionShare * budget)) : Infinity, regUsed = {};
   if (F.keepMin > 0) for (const c of Object.keys(sponsorAlloc)) {
     const r = rows.find(x => x.country === c);
     if (!r || r.assumed) { diag.infeasible.push(`${c}: cannot keep ≥ ${F.keepMin} sites because the country has no registry-based model`); continue; }
     if (!r.allow) { diag.infeasible.push(`${c}: keep-minimum not applied because the country is excluded (“Use” unticked)`); continue; }
-    const want = Math.round(F.keepMin), cap = effectiveCap(r);
-    const n = Math.min(want, cap, perMax, budget - total);
-    if (n < want) diag.infeasible.push(`${c}: keep ≥ ${want} not achievable, limited to ${Math.max(0, n)} by ${n === cap ? `capacity (${cap} usable experienced sites)` : n === perMax ? 'the max-share limit' : 'the budget'}`);
-    if (n > 0) { alloc[c] = n; total += n; }
+    const want = Math.round(F.keepMin), cap = effectiveCap(r), regRoom = r.region ? regMax - (regUsed[r.region] || 0) : Infinity;
+    const n = Math.min(want, cap, perMax, budget - total, regRoom);
+    if (n < want) diag.infeasible.push(`${c}: keep ≥ ${want} not achievable, limited to ${Math.max(0, n)} by ${n === cap ? `capacity (${cap} usable experienced sites)` : n === perMax ? 'the max-share limit' : n === regRoom ? `the region cap (${r.region}, ${regMax} sites)` : 'the budget'}`);
+    if (n > 0) { alloc[c] = n; total += n; if (r.region) regUsed[r.region] = (regUsed[r.region] || 0) + n; }
   }
   const pool = rows.filter(r => r.allow && !r.assumed && effectiveCap(r) >= F.minSites && r.value > 0 && (!F.onlyResearched || !anyIntel || r.intel));
-  // Optional regional cap (v0.9.1; off at 1): no world region takes more than this share of the budget
-  const regMax = F.maxRegionShare > 0 && F.maxRegionShare < 1 ? Math.max(F.minSites, Math.floor(F.maxRegionShare * budget)) : Infinity, regUsed = {};
-  for (const [c, n] of Object.entries(alloc)) { const g = rows.find(x => x.country === c)?.region; if (g) regUsed[g] = (regUsed[g] || 0) + n; }
   for (const r of pool.sort((a, b) => b.value - a.value)) {
     if (total >= budget) break;
     const have = alloc[r.country] || 0, cap = effectiveCap(r), regRoom = r.region ? regMax - (regUsed[r.region] || 0) : Infinity;
@@ -9538,6 +9537,13 @@ UI_TESTS.push(
   await r2Ready();S.fpp.minEvidence=99;await recompute();await waitFor(()=>simulationResultsCurrent());
   const fb=Object.keys(S.fp.allocB).length>0 && S.fp.diag.notes.some(n=>/No country has 99/.test(n)) && S.fp.rows.every(r=>!r.lowEvidence);
   return [r1<=20 && o.alloc.C>=20 && fb,JSON.stringify({alloc:o.alloc,fb})];
+ }],
+ ['Retrospective','Sponsor keep-minimum respects the regional cap and reports the conflict; with no regional cap it is unchanged',async()=>{
+  const row=(country,region,value)=>({country,region,rate:0.5,startup:3,cap:50,allow:true,value,assumed:false,intel:false,capOverride:null});
+  const rows=[row('A','R1',9),row('B','R1',8),row('C','R2',1)],F={...DEFAULT_FPP,maxShare:1,minSites:1,keepMin:20};
+  const o=MC_KERNELS.optimizeAllocCore({...F,maxRegionShare:0.5},rows,40,{A:20,B:20}),off=MC_KERNELS.optimizeAllocCore(F,rows,40,{A:20,B:20});
+  const r1=(o.alloc.A||0)+(o.alloc.B||0),flag=o.diag.infeasible.some(x=>/^B: keep ≥ 20 not achievable, limited to 0 by the region cap \(R1, 20 sites\)/.test(x));
+  return [r1<=20 && o.alloc.C===20 && o.total===40 && flag && off.alloc.A===20 && off.alloc.B===20 && !off.diag.infeasible.length,JSON.stringify({alloc:o.alloc,infeasible:o.diag.infeasible,off:off.alloc})];
  }],
  ['Retrospective','Comparators are weighted by size; thin evidence widens uncertainty; the as-of date limits both registry queries',async()=>{
   const g={medRate:0.3,items:[{rate:1,n:5000},{rate:0.1,n:50},{rate:0.1,n:60},{rate:0.1,n:40}]};

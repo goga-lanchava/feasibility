@@ -143,19 +143,18 @@ function optimizeAllocCore(F,rows,budget,sponsorAlloc = {}) {
   const perMax = Math.max(F.minSites, Math.floor(F.maxShare * budget));
   const anyIntel = rows.some(r => r.intel);
   rows.forEach(r => { if (r.capOverride && !r.capOverride.applied) diag.notes.push(`${r.country}: cap override ignored, a reason is required`); });
+  // Optional regional cap (v0.9.1; off at 1): no world region takes more than this share of the budget; it also limits the sponsor keep-minimum
+  const regMax = F.maxRegionShare > 0 && F.maxRegionShare < 1 ? Math.max(F.minSites, Math.floor(F.maxRegionShare * budget)) : Infinity, regUsed = {};
   if (F.keepMin > 0) for (const c of Object.keys(sponsorAlloc)) {
     const r = rows.find(x => x.country === c);
     if (!r || r.assumed) { diag.infeasible.push(`${c}: cannot keep ≥ ${F.keepMin} sites because the country has no registry-based model`); continue; }
     if (!r.allow) { diag.infeasible.push(`${c}: keep-minimum not applied because the country is excluded (“Use” unticked)`); continue; }
-    const want = Math.round(F.keepMin), cap = effectiveCap(r);
-    const n = Math.min(want, cap, perMax, budget - total);
-    if (n < want) diag.infeasible.push(`${c}: keep ≥ ${want} not achievable, limited to ${Math.max(0, n)} by ${n === cap ? `capacity (${cap} usable experienced sites)` : n === perMax ? 'the max-share limit' : 'the budget'}`);
-    if (n > 0) { alloc[c] = n; total += n; }
+    const want = Math.round(F.keepMin), cap = effectiveCap(r), regRoom = r.region ? regMax - (regUsed[r.region] || 0) : Infinity;
+    const n = Math.min(want, cap, perMax, budget - total, regRoom);
+    if (n < want) diag.infeasible.push(`${c}: keep ≥ ${want} not achievable, limited to ${Math.max(0, n)} by ${n === cap ? `capacity (${cap} usable experienced sites)` : n === perMax ? 'the max-share limit' : n === regRoom ? `the region cap (${r.region}, ${regMax} sites)` : 'the budget'}`);
+    if (n > 0) { alloc[c] = n; total += n; if (r.region) regUsed[r.region] = (regUsed[r.region] || 0) + n; }
   }
   const pool = rows.filter(r => r.allow && !r.assumed && effectiveCap(r) >= F.minSites && r.value > 0 && (!F.onlyResearched || !anyIntel || r.intel));
-  // Optional regional cap (v0.9.1; off at 1): no world region takes more than this share of the budget
-  const regMax = F.maxRegionShare > 0 && F.maxRegionShare < 1 ? Math.max(F.minSites, Math.floor(F.maxRegionShare * budget)) : Infinity, regUsed = {};
-  for (const [c, n] of Object.entries(alloc)) { const g = rows.find(x => x.country === c)?.region; if (g) regUsed[g] = (regUsed[g] || 0) + n; }
   for (const r of pool.sort((a, b) => b.value - a.value)) {
     if (total >= budget) break;
     const have = alloc[r.country] || 0, cap = effectiveCap(r), regRoom = r.region ? regMax - (regUsed[r.region] || 0) : Infinity;

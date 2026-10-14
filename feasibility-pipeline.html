@@ -3381,10 +3381,13 @@ async function ctgovFetch(params, onPage, cap = 3000) {
   return out;
 }
 // A valid YYYY-MM-DD (or YYYY-MM) back-test date, else '' (= today)
-function registryAsOf() { const v = String(S.brief.asOf || '').trim(); return /^\d{4}-\d{2}-\d{2}$/.test(v) ? v : /^\d{4}-\d{2}$/.test(v) ? v + '-01' : ''; }
+function registryAsOf() { const v = String(S.brief.asOf || '').trim(), d = /^\d{4}-\d{2}$/.test(v) ? v + '-01' : v; return validDateOnly(d) ? d : ''; }
+// A non-empty as-of value that is not a real calendar date (e.g. 2026-99-99 from an edited project file) must not silently fall back to today's registry
+const invalidAsOf = () => { const v = String(S.brief.asOf || '').trim(); return v && !registryAsOf() ? v : ''; };
 async function collectRegistry() {
   const B = S.brief; const cond = String(B.condition || '').trim();
   if (!cond) throw new Error('Enter a condition in the study brief, or parse a protocol under Study and click “Auto-fill from protocol”.');
+  if (invalidAsOf()) throw new Error(`Registry data as of “${invalidAsOf()}” is not a valid date (use YYYY-MM-DD or YYYY-MM). Correct or clear it under Search filters and research limits.`);
   const t0 = performance.now(); const tok = beginRequest('registry'); const fpAt = fingerprints().registryQuery;
   const phases = Object.entries(B.phases).filter(([, v]) => v).map(([k]) => k).join(' ');
   const agg = ['studyType:int', phases ? `phase:${phases}` : null].filter(Boolean).join(',');
@@ -9158,6 +9161,7 @@ function studyReviewHtml() {
   const parser = AI.provider === 'claude' && S.claude.key ? 'with Claude (the protocol text is sent to Anthropic)' : 'with the rule-based parser in this browser';
   const rows = [
     checkRow(cond || proto ? 'ok' : 'need', 'Study question', `${cond ? esc(cond) : 'Indication not set'} · ${fmt(S.params.target)} randomized within ${fmt(S.params.deadline)} months`),
+    ...(invalidAsOf() ? [checkRow('need', 'Registry as-of date', `“${esc(invalidAsOf())}” is not a valid date (use YYYY-MM-DD or YYYY-MM), so the registry search would fail. Correct or clear it under Search filters and research limits.`)] : []),
     ...(S.params.deadline <= S.fpp.defaultStartup + S.fpp.stagger / 2 ? [checkRow('need', 'Enrollment window', `${fmt(S.params.deadline)} months is not longer than the default country start-up (${fmt(S.fpp.defaultStartup)} months plus activation stagger), so the forecast will show almost no recruitment. The window counts from study start: if ${fmt(S.params.deadline)} months is the recruitment period itself, enter it plus start-up.`)] : []),
     !proto ? checkRow(cond ? 'info' : 'need', 'Protocol', 'No protocol: only the indication drives the registry search and no eligibility criteria are applied. Paste the eligibility section above or open a .txt file.')
       : isStale(2) ? checkRow('need', 'Protocol', 'The protocol changed after parsing: parse it again to review the current criteria.')
@@ -9580,6 +9584,14 @@ UI_TESTS.push(
   try{S.brief.condition='fixture';S.brief.asOf='2012-05-01';await collectRegistry();}finally{window.fetch=realFetch;}
   const q=urls.join(' ');
   return [on.global===1 && off.global===0.3 && on.sigmaTrial===0.9 && legacy.sigmaTrial===0 && ym==='2016-01-01' && bad==='' && /StartDate\]RANGE\[MIN,2012-05-01\]/.test(q) && /PrimaryCompletionDate\]RANGE\[MIN,2012-05-01\]/.test(q) && followupMonths(['Up to 5 years'])===60 && S.web?.query?.asOf==='2012-05-01',JSON.stringify({on,off:off.global,legacy:legacy.sigmaTrial,ym,bad,urls:urls.length})];
+ }],
+ ['Retrospective','An impossible as-of date is rejected visibly instead of reaching the registry query or silently using today\'s data',async()=>{
+  const keep={asOf:S.brief.asOf,condition:S.brief.condition},got={};
+  for(const v of ['2026-99-99','2023-02-30','2026-13','2024-02-29','2026-02'])(S.brief.asOf=v,got[v]=registryAsOf());
+  const urls=[],realFetch=window.fetch;window.fetch=async u=>{urls.push(String(u));return new Response(JSON.stringify({studies:[],totalCount:0}),{status:200,headers:{'Content-Type':'application/json'}});};
+  let err='';try{S.brief.condition='fixture';S.brief.asOf='2026-99-99';await collectRegistry();}catch(e){err=e.message;}finally{window.fetch=realFetch;}
+  const review=studyReviewHtml();S.brief.asOf='';const clean=studyReviewHtml();Object.assign(S.brief,keep);
+  return [got['2026-99-99']==='' && got['2023-02-30']==='' && got['2026-13']==='' && got['2024-02-29']==='2024-02-29' && got['2026-02']==='2026-02-01' && /not a valid date/.test(err) && urls.length===0 && /Registry as-of date/.test(review) && /2026-99-99/.test(review) && !/Registry as-of date/.test(clean),JSON.stringify({got,err,urls:urls.length})];
  }],
  ['Calibration','Speed scenario and benchmark rate re-centre the rates as labelled assumptions; thin evidence is flagged; the summary leads with the range',async()=>{
   await r2Ready();const base=S.fp.rows.map(r=>r.rate);

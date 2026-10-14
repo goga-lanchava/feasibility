@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /* Runs a back-test through the user interface in headless Chromium, the way a user would:
- * Study (indication, target, window, eligibility text, rule-based parse) → Evidence (history since, registry as of)
- * → Run analysis → Plan (custom site budget) → Report. Prints the forecast and writes <out>.json.
+ * Study (indication, target, window, planned sites, eligibility text, rule-based parse) → Evidence (history since,
+ * registry as of) → Run analysis → Report. Prints the forecast and writes <out>.json.
  *
  *   python3 -m http.server 8765 --bind 127.0.0.1          # from the repository root (the app needs localhost)
  *   node stress-test/analysis/ui_backtest.cjs stress-test/holdout-keynote407.json [out-prefix]
@@ -28,6 +28,7 @@ const OUT = process.argv[3] || `ui-backtest-${T.id}`;
   // Study
   await typeInto('[data-brief=condition]', T.cond);
   await typeInto('[data-setup=target]', T.n); await typeInto('[data-setup=deadline]', T.window);
+  if (!T.footprint && T.sites) await typeInto('[data-plansites]', T.sites);  // v0.9.4: planned number of sites under Study
   if (T.footprint) { await p.fill('[data-brief=sponsorFootprint]', T.footprint); await p.press('[data-brief=sponsorFootprint]', 'Tab'); }
   await p.fill('#protoText', T.proto); await p.press('#protoText', 'Tab');
   await p.click('summary:has-text("Protocol parsing options")'); await p.click('[data-act=parseRules]'); await p.waitForTimeout(800);
@@ -40,18 +41,12 @@ const OUT = process.argv[3] || `ui-backtest-${T.id}`;
   await clickPrimary(/review/i); await p.waitForTimeout(500);
   log('run:', await clickPrimary(/run|analy/i)); await settle();
   log('registry', await p.evaluate(() => S.status[1]?.msg));
-  // Plan: the planned site count can only be set here, after a first run
-  if (!T.footprint && T.sites) {
-    await p.click('#tab-plan'); await p.waitForTimeout(500); await openSections();
-    await p.selectOption('[data-fppsel=budgetMode]', 'custom'); await p.waitForTimeout(500);
-    await typeInto('[data-fpp=budget]', T.sites); await p.waitForTimeout(500); await settle();
-  }
   const res = await p.evaluate(() => {
     const s = S.fp.simB, d = s.deadline ?? S.params.deadline;
     return { budget: S.fp.budgetB, prob: s.prob, medMonths: s.medMonths, p90Months: s.p90Months, firstPatientMonth: s.p50.findIndex(v => v >= 1),
       p10: s.p10[d], p50: s.p50[d], p90: s.p90[d], globalRate: S.fp.globalRate, sigmaTrial: S.fpp.sigmaTrialEff, usable: S.web.global.dq.usedForRates,
       footprint: Object.entries(S.fp.allocB).sort((a, b) => b[1] - a[1]).map(([c, n]) => ({ country: c, sites: n, rate: +S.fp.rowsBy[c].rate.toFixed(3), trials: S.fp.rowsBy[c].evidence.trials })),
-      sponsor: S.fp.simA ? { prob: S.fp.simA.prob, medMonths: S.fp.simA.medMonths } : null };
+      sponsor: S.fp.simA ? { prob: S.fp.simA.prob, medMonths: S.fp.simA.medMonths } : null, months: fpiDuration(S.fp.simA || S.fp.simB)?.months ?? null, matchMode: S.fp.matchMode, comparatorBasis: comparatorBasisNote() };
   });
   await p.click('#tab-report'); await p.waitForTimeout(800);
   res.summary = await p.evaluate(() => document.querySelector('#workspace').innerText.split('\n').filter(l => /simulated runs|first patient/i.test(l)).slice(0, 3));

@@ -131,6 +131,76 @@
    "ratePerSiteMonth": 0.28,
    "error": "-19% (13 vs 16 months)",
    "insideRange": true
+  },
+  "version": "0.9.3"
+ },
+ "resultV094": {
+  "version": "0.9.4",
+  "plannedSitesField": 125,
+  "comparatorMatch": "pps",
+  "comparatorBasis": "Comparator rate 0.24 patients/site/month: 349 completed comparator trials weighted by how closely their patients per site match this plan (4.5 = 559 ÷ 125 planned sites; about 290 trials carry most of the weight).",
+  "forecast": {
+   "probability": 0.4885,
+   "recruitmentMonthsFromFirstPatient": 16,
+   "p10AtDeadline": 279,
+   "p50AtDeadline": 551,
+   "p90AtDeadline": 1099,
+   "verdict": "Unlikely (49%; the actual 559 sits at the median of 551)"
+  },
+  "footprint": [
+   {
+    "country": "India",
+    "sites": 25,
+    "rate": 0.324,
+    "trials": 34
+   },
+   {
+    "country": "Sweden",
+    "sites": 25,
+    "rate": 0.302,
+    "trials": 21
+   },
+   {
+    "country": "Portugal",
+    "sites": 24,
+    "rate": 0.308,
+    "trials": 16
+   },
+   {
+    "country": "Mexico",
+    "sites": 22,
+    "rate": 0.292,
+    "trials": 24
+   },
+   {
+    "country": "Belarus",
+    "sites": 10,
+    "rate": 0.357,
+    "trials": 5
+   },
+   {
+    "country": "Croatia",
+    "sites": 9,
+    "rate": 0.337,
+    "trials": 6
+   },
+   {
+    "country": "Georgia",
+    "sites": 7,
+    "rate": 0.334,
+    "trials": 5
+   },
+   {
+    "country": "Estonia",
+    "sites": 3,
+    "rate": 0.295,
+    "trials": 3
+   }
+  ],
+  "actual": {
+   "recruitmentMonths": 16,
+   "error": "0% (16 vs 16 months)",
+   "insideRange": true
   }
  }
 }

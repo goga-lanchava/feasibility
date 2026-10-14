@@ -330,7 +330,7 @@ body[data-view="expert"] .simple-only { display: none !important; }
 
   <header class="pipeline-header">
     <div class="pipeline-title-row">
-      <h1>Clinical Trial Feasibility · v0.9.3</h1>
+      <h1>Clinical Trial Feasibility · v0.9.4</h1>
       <div class="header-actions">
         <details class="menu" id="projectMenu"><summary class="btn btn-sm" title="Save, load or reset the analysis">Project</summary>
           <div class="menu-pop" role="group" aria-label="Project">
@@ -1183,9 +1183,9 @@ const ELIG_BASIS_ALIASES = { lower: 'lower', likely: 'likely', central: 'likely'
 const normEligBasis = v => ELIG_BASIS_ALIASES[v] || 'lower';
 const DEFAULT_PARAMS = { target: 300, deadline: 18, consent: 0.6, catchment: 8, actMin: 1, actMax: 4, sims: 2000, seed: 42, eligBasis: 'lower' };
 const DEFAULT_WEIGHTS = { density: 30, velocity: 25, quality: 20, capacity: 15, experience: 10 };
-const DEFAULT_BRIEF = { condition: '', comparator: '', investigational: '', mechanism: '', phases: { 1: false, 2: true, 3: true, 4: false }, since: new Date().getFullYear() - 12, asOf: '', industryOnly: true, sponsorFootprint: '', researchCountries: '', autoTopN: 10, maxSearches: 6 };
+const DEFAULT_BRIEF = { condition: '', comparator: '', investigational: '', mechanism: '', phases: { 1: false, 2: true, 3: true, 4: false }, since: new Date().getFullYear() - 12, asOf: '', industryOnly: true, sponsorFootprint: '', researchCountries: '', autoTopN: 10, maxSearches: 6, plannedSites: null };
 // v0.9.1 (retrospective test of 5 completed trials): maxShare 0.35 → 0.20; new enrollShareLong, sizeMatch, minEvidence, maxRegionShare, sigmaTrial (empty = from data)
-const DEFAULT_FPP = { budgetMode: 'match', budget: 75, maxShare: 0.2, minSites: 3, capShare: 0.6, enrollShare: 0.7, enrollShareLong: 0.5, stagger: 3, sigma: 0.4, sigmaTrial: null, satK: 0.25, socBroad: 0.8, socRestricted: 1.0, socLimited: 1.2, defaultStartup: 6, rateScale: 1, shrinkK: 3, sizeMatch: 1, minEvidence: 3, maxRegionShare: 1, speedScenario: 'typical', benchmarkRate: null, keepMin: 0, onlyResearched: 1, sponsorOnly: 0 };
+const DEFAULT_FPP = { budgetMode: 'match', budget: 75, maxShare: 0.2, minSites: 3, capShare: 0.6, enrollShare: 0.7, enrollShareLong: 0.5, stagger: 3, sigma: 0.4, sigmaTrial: null, satK: 0.25, socBroad: 0.8, socRestricted: 1.0, socLimited: 1.2, defaultStartup: 6, rateScale: 1, shrinkK: 3, sizeMatch: 1, ppsMatch: 1, minEvidence: 3, maxRegionShare: 1, speedScenario: 'typical', benchmarkRate: null, keepMin: 0, onlyResearched: 1, sponsorOnly: 0 };
 let S;
 function freshState() {
   return {
@@ -3406,7 +3406,8 @@ function aggregateWeb() {
     st.enrollMonths = span ? Math.max(3, span * (st.longFollowup ? (S.fpp.enrollShareLong ?? S.fpp.enrollShare) : S.fpp.enrollShare)) : null;
     st.rateProvenance = st.enrollType === 'ACTUAL' ? 'registry-derived proxy using actual total enrollment' : 'estimated enrollment; not actual performance';
     st.siteRate = ((st.enrollType === 'ACTUAL' || S.includeEstimatedRates) && nLoc >= 3 && st.enroll > 0 && st.enrollMonths) ? st.enroll / nLoc / st.enrollMonths : null;
-    if (st.siteRate != null) { allRates.push(st.siteRate); allItems.push({ rate: st.siteRate, n: st.enroll }); if (st.longFollowup) dq.longFollowup++; }
+    // pps (v0.9.4): enrollment per listed site, for matching comparators on the planned patients per site
+    if (st.siteRate != null) { allRates.push(st.siteRate); allItems.push({ rate: st.siteRate, n: st.enroll, pps: st.enroll / nLoc }); if (st.longFollowup) dq.longFollowup++; }
     if (st.siteRate != null) { dq.usedForRates++; if (st.enrollType !== 'ACTUAL') dq.estimatedIncluded++; }
     else if (!span) dq.missingDates++; else if (!(st.enroll > 0)) dq.noEnrollment++; else if (nLoc < 3) dq.fewSites++; else dq.estimatedExcluded++;
     const seen = new Set();
@@ -3415,7 +3416,7 @@ function aggregateWeb() {
       const c = C(l.country); c.hist.add(st.nct);
       const f = F(l); c.histFac.add(f.key);
       if (!f.hist.includes(st.nct)) { f.hist.push(st.nct); if (st.siteRate != null) f.rates.push(st.siteRate); }
-      if (!seen.has(l.country)) { seen.add(l.country); if (st.siteRate != null) { c.rates.push(st.siteRate); c.items.push({ rate: st.siteRate, n: st.enroll }); } }
+      if (!seen.has(l.country)) { seen.add(l.country); if (st.siteRate != null) { c.rates.push(st.siteRate); c.items.push({ rate: st.siteRate, n: st.enroll, pps: st.enroll / nLoc }); } }
     }
   }
   for (const c of Object.values(countries)) {
@@ -3593,12 +3594,22 @@ function importIntel(text) {
 /* =====================================================================
  * 10e. Country footprint model — sponsor vs optimized recommendation
  * ===================================================================== */
+// Plain-language basis of the comparator rate (Plan, executive summary)
+function comparatorBasisNote() {
+  const fp = S.fp, g = S.web?.global; if (!fp || !g) return '';
+  const n = (g.items || []).length, m = fp.match;
+  if (fp.matchMode === 'pps' && m) return `Comparator rate ${fmt2(fp.globalRate)} patients/site/month: ${fmt(n)} completed comparator trials weighted by how closely their patients per site match this plan (${fmt1(m.planned)} = ${fmt(S.params.target)} ÷ ${fmt(m.sites)} ${m.source === 'footprint' ? 'proposed' : 'planned'} sites; about ${fmt(m.effective)} trials carry most of the weight).${m.clamped === 'high' ? ` The planned load is above 95% of the comparators', so the busiest comparators (${fmt1(m.hi)} patients/site) are used: possibly optimistic.` : m.clamped === 'low' ? ` The planned load is below 95% of the comparators', so the lightest-loaded comparators (${fmt1(m.lo)} patients/site) are used.` : ''}`;
+  const why = !S.fpp.ppsMatch || n < 3 ? '' : m && !m.applied ? ` Too few comparator trials had a load close to this plan's ${fmt1(m.planned)} patients per site (about ${fmt1(m.effective)}; at least ${PPS_MIN_EFFECTIVE} are needed), so they are not matched on patients per site.`
+    : ' Enter the planned number of sites under Study (or a site count for every proposed country) to match comparators on patients per site, which was more accurate in back-tests.';
+  return `Comparator rate ${fmt2(fp.globalRate)} patients/site/month: ${fmt(n)} completed comparator trials${fp.matchMode === 'size' ? ', weighted by size similarity to the target' : ''}.${why}`;
+}
 function computeFootprint(deferSimulation = false) {
   const t0 = performance.now(); const W = S.web, F = S.fpp, P = S.params, g = W.global;
   // Optional (v0.8.0): plan within the sponsor's countries only. Other countries stay in the table but are not allowed in the
   // recommendation; the user's own "Use" choice is kept separately (userAllow). With no sponsor list there is no restriction.
   const spSet = new Set(parseFootprint(S.brief.sponsorFootprint).map(x => x.country)), restrict = !!F.sponsorOnly && spSet.size > 0;
-  // Comparator trials weighted by size similarity to the target (v0.9.1): weight 0.61 at 4× larger or smaller, 0.14 at 16×
+  // Comparator trials weighted by size similarity to the target (v0.9.1), or matched on planned patients per site when the
+  // user has entered the site count (v0.9.4); see sizeMatchedRates
   const SR = sizeMatchedRates(W, F, P), gRate = SR.global;
   // v0.9.3: the registry cannot tell a fast programme from a slow one. A user benchmark (patients/site/month) re-centres every
   // country while keeping their relative differences; the speed scenario is an explicit, labelled assumption.
@@ -3676,7 +3687,7 @@ function computeFootprint(deferSimulation = false) {
       .sort((a, b) => (b.hist.length - 0.75 * b.comp.length) - (a.hist.length - 0.75 * a.comp.length) || b.hist.length - a.hist.length).slice(0, Math.min(5, r.b));
     shortlist.push(...facs.map(f => ({ ...f, rate: f.rates.length ? median(f.rates) : null })));
   }
-  S.fp = { globalRate: gRate, sizeMatched: SR.used, sigmaTrialAuto: SR.sigmaTrial, rows, rowsBy, requested, totalRequested, allocA, totalA, unsupportedA, allocB, totalB, budgetB, diag, dupNotes, simA, simB, shortlist, modifierCheck, missingA: Object.keys(unsupportedA), sponsorOnly: restrict, sponsorOnlyWithoutList: !!F.sponsorOnly && !spSet.size, ms: performance.now() - t0 };
+  S.fp = { globalRate: gRate, sizeMatched: SR.used, matchMode: SR.mode, match: SR.match, sigmaSdLog: SR.sdLog, sigmaTrialAuto: SR.sigmaTrial, rows, rowsBy, requested, totalRequested, allocA, totalA, unsupportedA, allocB, totalB, budgetB, diag, dupNotes, simA, simB, shortlist, modifierCheck, missingA: Object.keys(unsupportedA), sponsorOnly: restrict, sponsorOnlyWithoutList: !!F.sponsorOnly && !spSet.size, ms: performance.now() - t0 };
   if (!S.cohort) { S.timings[3] = S.fp.ms; S.timings[4] = S.fp.ms; }
 }
 // v0.9.3 recruitment-speed scenarios. In 48 back-tested trials, trials that recruited within 12 months ran ~2× the
@@ -3686,21 +3697,59 @@ const SPEED_SCENARIOS = {
   fast: { factor: 2, label: 'Fast: high-volume sites, common or single-visit indication (×2)' },
   slow: { factor: 0.75, label: 'Slow: rare population, complex or burdensome protocol (×0.75)' },
 };
+// v0.9.4: the site count of the plan as entered under Study: a proposed footprint with a site count for every country
+// (it comes first: it is the plan the forecast leads with), or the planned number of sites. The default budget is not a
+// plan. What-ifs on the recommended budget (Plan, flexibility options, sites needed) keep this anchor, so they add or remove
+// sites at the plan's matched per-site rate, exactly as their searches assume.
+function plannedSites() {
+  const sp = parseFootprint(S.brief.sponsorFootprint), n = +S.brief.plannedSites;
+  if (sp.length && sp.every(x => x.sites > 0)) return { sites: sp.reduce((a, x) => a + x.sites, 0), source: 'footprint' };
+  if (n > 0) return { sites: n, source: 'planned' };
+  return { sites: S.fpp.budget, source: null };
+}
+// Trial-level σ = k × the weighted SD of comparator log rates, kept within [lo, hi]. 'size' is the v0.9.3 rule (calibrated on
+// 48 back-tested trials). 'pps' applies to comparators matched on patients per site (v0.9.4): the same k was checked on the
+// re-run back-tests (round 3: 81% of actual results inside the 80% range; rounds 1–2: 9/9), so it was not changed.
+const SIGMA_RULE = { size: { k: 0.8, lo: 0.3, hi: 0.9 }, pps: { k: 0.8, lo: 0.3, hi: 0.9 } };
+const PPS_MIN_EFFECTIVE = 5;
 // v0.9.1: comparator rates weighted by size similarity to the target, and the trial-level uncertainty they imply.
+// v0.9.4: when the user has entered the site count, comparators are matched on patients per site instead (target ÷ planned
+// sites vs each comparator's enrollment ÷ listed sites; weight 0.61 at 2× more or fewer). Sponsors size a footprint to the
+// per-site rate they expect, so this carries information the condition alone does not (57 back-tested trials re-run in the
+// app: timing log error 0.73 → 0.65, median 80% range width 7.6× → 4.6× with coverage 82% → 84%). The planned load is kept
+// within the 5th–95th percentile of the comparators' loads, so an undersized plan is never matched to rates no comparator
+// trial reached; the clamp is reported. Fewer than 5 effective matched comparators keep the size weighting.
 // Without per-trial sizes (older saved data, fixtures) every weight is 1, which reproduces the plain medians.
-function sizeMatchedRates(W, F, P) {
-  const g = W.global, on = !!F.sizeMatch && P.target > 0;
-  const wOf = n => on && n > 0 ? Math.exp(-0.5 * (Math.log(n / P.target) / Math.log(4)) ** 2) : 1;
-  const wmed = items => { const s = items.map(x => ({ r: x.rate, w: wOf(x.n) })).sort((a, b) => a.r - b.r); const tot = s.reduce((a, x) => a + x.w, 0); if (!(tot > 0)) return null; let acc = 0; for (const x of s) { acc += x.w; if (acc >= tot / 2) return x.r; } return s[s.length - 1].r; };
-  const gItems = g.items || [], gW = gItems.reduce((a, x) => a + wOf(x.n), 0);
+function sizeMatchedRates(W, F, P, plan = plannedSites()) {
+  const g = W.global, gItems = g.items || [];
+  const ppsOn = !!F.ppsMatch && P.target > 0 && !!plan?.source && plan.sites > 0 && gItems.length >= 3 && gItems.every(x => x.pps > 0);
+  let on = ppsOn || (!!F.sizeMatch && P.target > 0);
+  let match = null, wOf;
+  const kern = (x, t, bw) => Math.exp(-0.5 * (Math.log(x / t) / Math.log(bw)) ** 2);
+  let ppsUsed = false;
+  if (ppsOn) {
+    const ps = gItems.map(x => x.pps).sort((a, b) => a - b);
+    const q = p => { const h = (ps.length - 1) * p, i = Math.floor(h); return ps[i] + (h - i) * ((ps[Math.min(i + 1, ps.length - 1)]) - ps[i]); };
+    const planned = P.target / plan.sites, lo = q(0.05), hi = q(0.95), used = clamp(planned, lo, hi);
+    const wP = x => x.pps > 0 ? kern(x.pps, used, 2) : 0;
+    const ws = gItems.map(wP), sw = ws.reduce((a, b) => a + b, 0), sw2 = ws.reduce((a, b) => a + b * b, 0), effective = sw2 > 0 ? sw * sw / sw2 : 0;
+    // A median of fewer than 5 effective comparators is too unstable (the same minimum as for measuring the spread below):
+    // keep the size weighting then, and say so
+    ppsUsed = effective >= PPS_MIN_EFFECTIVE;
+    match = { planned, used, sites: plan.sites, source: plan.source, lo, hi, clamped: planned > hi ? 'high' : planned < lo ? 'low' : null, effective, comparators: gItems.length, applied: ppsUsed };
+    if (ppsUsed) wOf = wP;
+  }
+  if (!ppsUsed) { on = !!F.sizeMatch && P.target > 0; wOf = x => on && x.n > 0 ? kern(x.n, P.target, 4) : 1; }
+  const wmed = items => { const s = items.map(x => ({ r: x.rate, w: wOf(x) })).sort((a, b) => a.r - b.r); const tot = s.reduce((a, x) => a + x.w, 0); if (!(tot > 0)) return null; let acc = 0; for (const x of s) { acc += x.w; if (acc >= tot / 2) return x.r; } return s[s.length - 1].r; };
+  const gW = gItems.reduce((a, x) => a + wOf(x), 0);
   const global = on && gItems.length && gW > 0 ? wmed(gItems) : g.medRate;
-  // Spread of whole trials around the comparator median: 0.8 × the weighted SD of log rates, kept between 0.3 and 0.9
-  // (v0.9.3: calibrated on 48 back-tested trials, where 0.5 × SD left only 58% of actual results inside the 80% range).
+  // Spread of whole trials around the comparator median: k × the weighted SD of log rates, kept within [lo, hi].
   // Too few comparator trials to measure the spread means more uncertainty, not less: use the upper bound.
   // Data without per-trial sizes (fixtures, projects saved before v0.9.1) keep the earlier behaviour (no trial-level term).
-  let sigmaTrial = g.items && gItems.length < 5 ? 0.9 : 0;
-  if (gItems.length >= 5) { const ws = gItems.map(x => ({ l: Math.log(x.rate), w: wOf(x.n) })).filter(x => isFinite(x.l)); const W_ = ws.reduce((a, x) => a + x.w, 0); const m = ws.reduce((a, x) => a + x.w * x.l, 0) / W_; sigmaTrial = clamp(0.8 * Math.sqrt(ws.reduce((a, x) => a + x.w * (x.l - m) ** 2, 0) / W_), 0.3, 0.9); }
-  return { global, used: on && gItems.length > 0, sigmaTrial: +sigmaTrial.toFixed(3), country: c => { const items = c.items && c.items.length === c.rates.length ? c.items : c.rates.map(rate => ({ rate, n: null })); if (!items.length) return { rate: null, weight: 0 }; const w = items.reduce((a, x) => a + wOf(x.n), 0); return { rate: on ? wmed(items) : median(c.rates), weight: on ? w : c.rates.length }; } };
+  const rule = SIGMA_RULE[ppsUsed ? 'pps' : 'size'];
+  let sigmaTrial = g.items && gItems.length < 5 ? rule.hi : 0, sdLog = null;
+  if (gItems.length >= 5) { const ws = gItems.map(x => ({ l: Math.log(x.rate), w: wOf(x) })).filter(x => isFinite(x.l)); const W_ = ws.reduce((a, x) => a + x.w, 0); const m = ws.reduce((a, x) => a + x.w * x.l, 0) / W_; sdLog = Math.sqrt(ws.reduce((a, x) => a + x.w * (x.l - m) ** 2, 0) / W_); sigmaTrial = clamp(rule.k * sdLog, rule.lo, rule.hi); }
+  return { global, used: on && gItems.length > 0, mode: ppsUsed ? 'pps' : on ? 'size' : 'none', match, sdLog, sigmaTrial: +sigmaTrial.toFixed(3), country: c => { const items = c.items && c.items.length === c.rates.length ? c.items : c.rates.map(rate => ({ rate, n: null })); if (!items.length) return { rate: null, weight: 0 }; const w = items.reduce((a, x) => a + wOf(x), 0); return { rate: on ? wmed(items) : median(c.rates), weight: on ? w : c.rates.length }; } };
 }
 // Production entry points: the shared static kernels applied to the current state
 function optimizeAlloc(rows, budget, sponsorAlloc = {}) { return MC_KERNELS.optimizeAllocCore(S.fpp, rows, budget, sponsorAlloc); }
@@ -3789,6 +3838,11 @@ function footprintFlags() {
   // v0.9.3: in 57 back-tested trials, forecasts resting on fewer than 30 usable completed comparators erred about twice as much
   const nUsed = S.web?.global?.dq?.usedForRates ?? null;
   if (nUsed != null && nUsed < 30) out.push({ sev: 'med', cat: 'Evidence', title: `Forecast rests on ${fmt(nUsed)} usable completed comparator trials`, detail: `Back-tests of completed trials found timing errors about twice as large with fewer than 30 comparators (median 63% vs 37%). Try broader condition terms (e.g. the disease rather than a subtype), widen the phases or the history window, or enter a benchmark rate under Plan.` });
+  // v0.9.4: a planned load outside the comparators' range is matched to the nearest comparators, never extrapolated
+  const pm = fp.match;
+  if (fp.matchMode === 'pps' && pm?.clamped === 'high') out.push({ sev: 'med', cat: 'Evidence', title: `Planned load of ${fmt1(pm.planned)} patients per site is above 95% of comparator trials`, detail: `${fmt(S.params.target)} participants at ${fmt(pm.sites)} sites; 95% of the ${fmt(pm.comparators)} usable comparator trials enrolled at most ${fmt1(pm.hi)} per listed site. The forecast uses the busiest comparators' rates and may be optimistic: consider more sites, or confirm the per-site load with investigators.` });
+  if (fp.matchMode === 'pps' && pm?.clamped === 'low') out.push({ sev: 'info', cat: 'Evidence', title: `Planned load of ${fmt1(pm.planned)} patients per site is below 95% of comparator trials`, detail: `With many sites each enrolling few participants, the forecast uses the lightest-loaded comparators (${fmt1(pm.lo)} per site). Check that every planned site is needed.` });
+  if (fp.matchMode !== 'pps' && S.fpp.ppsMatch && (S.web?.global?.items || []).length >= 3) out.push({ sev: 'info', cat: 'Method', title: 'Comparators are not matched on patients per site', detail: pm && !pm.applied ? `Only about ${fmt1(pm.effective)} comparator trials had a load close to this plan's ${fmt1(pm.planned)} patients per site (at least ${PPS_MIN_EFFECTIVE} are needed), so comparator trials are weighted by size only.` : 'No planned site count was entered, so comparator trials are weighted by size only. Enter the planned number of sites under Study (or a site count for every proposed country): in back-tests of completed trials, matching on patients per site reduced timing errors.' });
   const F_ = S.fpp;
   if ((F_.speedScenario && F_.speedScenario !== 'typical') || F_.benchmarkRate > 0) out.push({ sev: 'info', cat: 'Method', title: 'Recruitment rates use a user assumption', detail: [F_.speedScenario && F_.speedScenario !== 'typical' ? `Speed scenario: ${SPEED_SCENARIOS[F_.speedScenario].label}.` : '', F_.benchmarkRate > 0 ? `Benchmark rate ${fmt2(F_.benchmarkRate)} patients/site/month replaces the registry level (${fmt2(fp.globalRate)}); country differences are kept.` : ''].filter(Boolean).join(' ') + ' State the source of this assumption when presenting the forecast.' });
   const mc = fp.modifierCheck;
@@ -4025,6 +4079,7 @@ function wsFootprint() {
       <label class="field" title="Registry data cannot tell a fast programme from a slow one. In back-tests of 48 completed trials, trials that recruited within 12 months ran about twice the registry-based rate. This is an assumption: it is shown in the report.">Recruitment speed scenario<select data-fppsel="speedScenario">${Object.entries(SPEED_SCENARIOS).map(([k, v]) => `<option value="${k}" ${(S.fpp.speedScenario || 'typical') === k ? 'selected' : ''}>${esc(v.label)}</option>`).join('')}</select></label>
       <label class="field" title="Your own benchmark for this kind of trial, e.g. from previous studies with these sites. It re-centres every country's rate while keeping their relative differences. Empty uses the registry comparators${S.fp?.globalRate ? ` (${fmt2(S.fp.globalRate)} now)` : ''}.">Benchmark rate, patients/site/month (optional)<input type="number" step="0.05" min="0" max="50" data-fpp="benchmarkRate" value="${S.fpp.benchmarkRate ?? ''}" placeholder="registry"></label>
     </div>
+    ${comparatorBasisNote() ? `<p class="note" id="comparatorBasis">${esc(comparatorBasisNote())}</p>` : ''}
     <details class="claude"><summary>Model assumptions (${fmt(S.params.sims)} runs, seed ${S.params.seed}; shares, start-up, stagger, rate uncertainty, saturation and comparator factors)</summary>
     <div class="field-grid" style="margin-top:8px">
       ${pfield('sims', 'Monte Carlo runs', 100, 1)}${pfield('seed', 'Random seed', 1, 1)}
@@ -4033,6 +4088,7 @@ function wsFootprint() {
       <label class="field">Trial-level rate uncertainty σ (empty = from comparator trials${S.fp?.sigmaTrialAuto != null ? `, now ${fmt2(S.fp.sigmaTrialAuto)}` : ''})<input type="number" step="0.05" min="0" max="2" data-fpp="sigmaTrial" value="${S.fpp.sigmaTrial ?? ''}" placeholder="auto" title="One multiplier per simulated trial shared by all sites: how much whole trials differ from the comparator median. Empty uses 0.8 × the spread of comparator trials' log rates (between 0.3 and 0.9), calibrated on 48 back-tested trials."></label>${ffield('satK', 'Saturation sensitivity', 0.05)}
       ${ffield('minEvidence', 'Min comparator trials to recommend a country', 1, 'Countries with fewer usable completed trials are not recommended (sponsor countries are still modelled); tick “Use” to allow one anyway')}${ffield('maxRegionShare', 'Max share per world region', 0.05, '1 = no regional cap; e.g. 0.5 keeps any region at or below half of the sites')}
       <label class="note"><input type="checkbox" data-fpp="sizeMatch" ${S.fpp.sizeMatch ? 'checked' : ''}> Weight comparator trials by size similarity to the target (a 7,000-patient trial is not compared mainly with 60-patient trials)</label>
+      <label class="note"><input type="checkbox" data-fpp="ppsMatch" ${S.fpp.ppsMatch ? 'checked' : ''}> Match comparator trials on planned patients per site (target ÷ planned sites) when the site count is entered; replaces the size weighting</label>
       ${ffield('rateScale', 'Rate calibration ×', 0.05, 'Multiply all registry-derived rates, e.g. to match your internal benchmark')}${ffield('shrinkK', 'Shrinkage to global rate (trials)', 1, 'Countries with few completed trials are pulled toward the global median')}${ffield('keepMin', 'Keep ≥ N sites in sponsor countries', 1, 'Minimum presence kept in each sponsor country in the recommendation')}
       ${ffield('socBroad', 'Rate × if comparator broad', 0.05)}${ffield('socRestricted', 'Rate × if restricted', 0.05)}${ffield('socLimited', 'Rate × if limited', 0.05)}${ffield('defaultStartup', 'Default start-up (months)', 0.5)}
     </div>
@@ -4128,9 +4184,9 @@ function wsCountries() {
  * 10h. Input validation, allocation integrity and stale-result tracking
  * ===================================================================== */
 const PARAM_SCHEMA = { target: { int: true, min: 1, max: 100000, label: 'Target' }, deadline: { int: true, min: 1, max: 120, label: 'Enrollment window' }, consent: { min: 0.01, max: 1, label: 'Consent rate' }, catchment: { min: 0.01, max: 1000, label: 'Catchment multiplier' }, actMin: { int: true, min: 0, max: 36, label: 'Activation min' }, actMax: { int: true, min: 0, max: 36, label: 'Activation max' }, sims: { int: true, min: 100, max: 20000, label: 'Monte Carlo runs' }, seed: { int: true, min: 0, max: 2147483647, label: 'Random seed' } };
-const FPP_SCHEMA = { budget: { int: true, min: 1, max: 5000, label: 'Site budget' }, maxShare: { min: 0.01, max: 1, label: 'Max share per country' }, minSites: { int: true, min: 1, max: 500, label: 'Min sites per country' }, capShare: { min: 0.01, max: 1, label: 'Usable share of experienced sites' }, enrollShare: { min: 0.05, max: 1, label: 'Enrollment share' }, enrollShareLong: { min: 0.05, max: 1, label: 'Enrollment share, long follow-up trials' }, sigmaTrial: { min: 0, max: 2, label: 'Trial-level rate uncertainty' }, benchmarkRate: { min: 0.001, max: 50, label: 'Benchmark rate' }, sizeMatch: { int: true, min: 0, max: 1, label: 'Weight comparators by size' }, minEvidence: { int: true, min: 0, max: 50, label: 'Minimum comparator trials to recommend a country' }, maxRegionShare: { min: 0.05, max: 1, label: 'Max share per world region' }, stagger: { min: 0, max: 24, label: 'Activation stagger' }, sigma: { min: 0, max: 2, label: 'Rate uncertainty' }, satK: { min: 0, max: 5, label: 'Saturation sensitivity' }, socBroad: { min: 0.05, max: 5, label: 'Comparator-broad factor' }, socRestricted: { min: 0.05, max: 5, label: 'Comparator-restricted factor' }, socLimited: { min: 0.05, max: 5, label: 'Comparator-limited factor' }, defaultStartup: { min: 0, max: 48, label: 'Default start-up' }, rateScale: { min: 0.01, max: 20, label: 'Rate calibration' }, shrinkK: { min: 0, max: 50, label: 'Shrinkage' }, keepMin: { int: true, min: 0, max: 500, label: 'Keep ≥ N sites' }, onlyResearched: { int: true, min: 0, max: 1, label: 'Only researched' }, sponsorOnly: { int: true, min: 0, max: 1, label: 'Sponsor countries only' } };
+const FPP_SCHEMA = { budget: { int: true, min: 1, max: 5000, label: 'Site budget' }, maxShare: { min: 0.01, max: 1, label: 'Max share per country' }, minSites: { int: true, min: 1, max: 500, label: 'Min sites per country' }, capShare: { min: 0.01, max: 1, label: 'Usable share of experienced sites' }, enrollShare: { min: 0.05, max: 1, label: 'Enrollment share' }, enrollShareLong: { min: 0.05, max: 1, label: 'Enrollment share, long follow-up trials' }, sigmaTrial: { min: 0, max: 2, label: 'Trial-level rate uncertainty' }, benchmarkRate: { min: 0.001, max: 50, label: 'Benchmark rate' }, sizeMatch: { int: true, min: 0, max: 1, label: 'Weight comparators by size' }, ppsMatch: { int: true, min: 0, max: 1, label: 'Match comparators on planned patients per site' }, minEvidence: { int: true, min: 0, max: 50, label: 'Minimum comparator trials to recommend a country' }, maxRegionShare: { min: 0.05, max: 1, label: 'Max share per world region' }, stagger: { min: 0, max: 24, label: 'Activation stagger' }, sigma: { min: 0, max: 2, label: 'Rate uncertainty' }, satK: { min: 0, max: 5, label: 'Saturation sensitivity' }, socBroad: { min: 0.05, max: 5, label: 'Comparator-broad factor' }, socRestricted: { min: 0.05, max: 5, label: 'Comparator-restricted factor' }, socLimited: { min: 0.05, max: 5, label: 'Comparator-limited factor' }, defaultStartup: { min: 0, max: 48, label: 'Default start-up' }, rateScale: { min: 0.01, max: 20, label: 'Rate calibration' }, shrinkK: { min: 0, max: 50, label: 'Shrinkage' }, keepMin: { int: true, min: 0, max: 500, label: 'Keep ≥ N sites' }, onlyResearched: { int: true, min: 0, max: 1, label: 'Only researched' }, sponsorOnly: { int: true, min: 0, max: 1, label: 'Sponsor countries only' } };
 const OV_SCHEMA = { rate: { min: 0, max: 50, label: 'Per-site monthly rate' }, startup: { min: 0, max: 48, label: 'Start-up months' }, cap: { int: true, min: 0, max: 5000, label: 'Country cap' }, assumedRate: { min: 0, max: 50, label: 'Assumed rate' }, assumedStartup: { min: 0, max: 48, label: 'Assumed start-up' } };
-const BRIEF_NUM = { since: { int: true, min: 1990, max: new Date().getFullYear(), label: 'Completed trials since' }, autoTopN: { int: true, min: 0, max: 60, label: 'Auto-research top N' }, maxSearches: { int: true, min: 1, max: 20, label: 'Max web searches' } };
+const BRIEF_NUM = { since: { int: true, min: 1990, max: new Date().getFullYear(), label: 'Completed trials since' }, autoTopN: { int: true, min: 0, max: 60, label: 'Auto-research top N' }, maxSearches: { int: true, min: 1, max: 20, label: 'Max web searches' }, plannedSites: { int: true, min: 1, max: 5000, label: 'Planned number of sites' } };
 function checkNum(raw, spec) {
   const v = typeof raw === 'number' ? raw : parseNumberField(raw);
   if (v == null || !isFinite(v)) return { error: `${spec.label} must be a number` };
@@ -5083,7 +5139,7 @@ const ACTIONS = {
   },
   runAll: async () => {
     const btn = $('#runAllBtn'); btn.disabled = true;
-    const go = async (i, fn) => { S.step = i; S.running = i; renderAll(); await sleep(350); if (fn) await fn(); S.running = -1; renderAll(); await sleep(150); };
+    const go = async (i, fn) => { if (!(guidedRun && userMovedDuringRun)) S.step = i; S.running = i; renderAll(); await sleep(350); if (fn) await fn(); S.running = -1; renderAll(); await sleep(150); };
     try {
       if (S.mode === 'emr') {
         await go(0, async () => { if (!S.patients) await loadDemoEmr('csv'); });
@@ -5153,7 +5209,7 @@ function summarizeSim(s) { return { sites: s.nSites, runs: s.N, probabilityOfTar
 
 
 /* Audited extension: v0.3.0, research prototype. Offline inputs stay local. */
-const APP_VERSION = '0.9.3';
+const APP_VERSION = '0.9.4';
 const REPORT_SCHEMA = 'tfp-analysis/2';
 const FEEDBACK_COLS = ['site_id','site_name','country','interest','eligible_patients','enrollment_per_month','startup_months','competing_trials','response_date','challenges','source',
   'reporter','eligible_period_months','screened_per_month','randomized_per_month','enrollment_unit','screening_confirmation','competing_overlap','referral_pathways','investigators','coordinators','capabilities'];
@@ -6165,7 +6221,7 @@ function renderStart() {
   const ae = document.activeElement, inside = !!ae && host.contains(ae);
   if (startChanging || (inside && /^(INPUT|TEXTAREA)$/.test(ae.tagName) && !startCommit)) return;
   startCommit = false;
-  const key = !inside ? null : ae.dataset.setup ? `[data-setup="${ae.dataset.setup}"]` : ae.dataset.brief != null ? `[data-brief="${ae.dataset.brief}"]`
+  const key = !inside ? null : ae.dataset.setup ? `[data-setup="${ae.dataset.setup}"]` : ae.dataset.plansites != null ? '[data-plansites]' : ae.dataset.brief != null ? `[data-brief="${ae.dataset.brief}"]`
     : ae.dataset.act ? `[data-act="${ae.dataset.act}"]` + ['path', 'i', 'target'].map(d => ae.dataset[d] != null ? `[data-${d}="${ae.dataset[d]}"]` : '').join('') : null;
   host.innerHTML = startHtml();
   if (key) host.querySelector(key)?.focus();
@@ -6315,6 +6371,7 @@ function buildExecSummary() {
   if (H.length) L.push(`Answer: ${overallVerdict(H).text}.${zeroLowerNote() ? ' ' + zeroLowerNote() : ''}`, verdictRule());
   for (const r of H) if (rangeSentence(r.sim, D)) L.push(`- ${r.label}, range: ${rangeSentence(r.sim, D)}`);
   if ((S.fpp.speedScenario && S.fpp.speedScenario !== 'typical') || S.fpp.benchmarkRate > 0) L.push(`- Rate assumption: ${[S.fpp.speedScenario !== 'typical' ? SPEED_SCENARIOS[S.fpp.speedScenario]?.label : '', S.fpp.benchmarkRate > 0 ? `benchmark ${fmt2(S.fpp.benchmarkRate)} patients/site/month` : ''].filter(Boolean).join('; ')}.`);
+  if (comparatorBasisNote()) L.push(`- Comparator basis: ${comparatorBasisNote()}`);
   for (const r of H) L.push(`- ${r.label} (${r.sub}): ${pct(r.sim.prob)} of simulated runs reach the target by month ${D}; median time to target ${medTxt(r.sim)} from study start (incl. country start-up); ${fpiTxt(r.sim)} months from the first patient.`);
   for (const g of rangeModel()) {
     L.push('', `Forecast ranges: ${g.title}${R ? ` (${fmt(R.N)} runs each)` : ''}`);
@@ -6335,13 +6392,15 @@ function buildExecSummary() {
 }
 const resetSetupState = () => { S.mode = 'web'; const m = $('#mode'); if (m) m.value = 'web'; S.setup = { path: null, open: true, override: {} }; };
 async function runGuided() {
-  guidedRun = true; S.setup.msg = null; renderTasks();
+  guidedRun = true; userMovedDuringRun = false; S.setup.msg = null; renderTasks();
   try {
     await ACTIONS.runAll();
     // The three ranges come from the existing sensitivity job, run only on top of a current, accepted simulation
     if (simulationResultsCurrent() && !S.sensitivity) await ACTIONS.sensitivity();
   } finally { guidedRun = false; }
   if (S.risks && simulationResultsCurrent()) {
+    // Open the Report only if the user stayed put; otherwise keep their tab and say the Report is ready
+    if (userMovedDuringRun) { S.setup.msg = { text: 'The analysis is complete: the Report is ready.', err: false }; renderAll(); return; }
     S.step = 5; renderAll();
     $('#detailCard')?.scrollIntoView?.({ block: 'start' });
     return;
@@ -6392,13 +6451,15 @@ Choose Cancel to keep the analysis exactly as it is.`)) return;
   },
 });
 
+// v0.9.4: navigation by the user during a guided run is remembered, so finishing the run does not move them
+const NAV_ACTS = new Set(['task', 'go', 'setupGoStep', 'prev', 'next']);
 document.addEventListener('click', e => {
-  const a = e.target.closest('[data-act]'); if (a && ACTIONS[a.dataset.act]) { ACTIONS[a.dataset.act](a, e); return; }
-  const n = e.target.closest('.flow-node'); if (n) { S.step = +n.dataset.step; renderAll(); }
+  const a = e.target.closest('[data-act]'); if (a && ACTIONS[a.dataset.act]) { if (guidedRun && NAV_ACTS.has(a.dataset.act)) userMovedDuringRun = true; ACTIONS[a.dataset.act](a, e); return; }
+  const n = e.target.closest('.flow-node'); if (n) { if (guidedRun) userMovedDuringRun = true; S.step = +n.dataset.step; renderAll(); }
 });
 document.addEventListener('keydown', e => {
   const n = e.target.closest?.('.flow-node');
-  if (n && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); S.step = +n.dataset.step; renderAll(); }
+  if (n && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); if (guidedRun) userMovedDuringRun = true; S.step = +n.dataset.step; renderAll(); }
 });
 document.addEventListener('input', e => {
   const t = e.target;
@@ -8892,6 +8953,14 @@ document.addEventListener('change', e => {
     S.params[k] = r.value; S.setup.override[k] = r.value; S.setup.msg = null;
     if (simulationNeeded()) { clearTimeout(debounce); debounce = setTimeout(() => { recompute(); renderAll(); }, 60); }
     commitStart();
+  } else if (t.dataset.plansites != null) {
+    // v0.9.4: the planned number of sites is part of the study (it anchors the comparator matching) and also sizes the
+    // recommended footprint (Plan › Custom); empty clears it and restores the default budget
+    const v = String(t.value).trim();
+    if (!v) { S.brief.plannedSites = null; S.fpp.budgetMode = 'match'; S.fpp.budget = DEFAULT_FPP.budget; S.setup.msg = null; }
+    else { const r = checkNum(v, BRIEF_NUM.plannedSites); if (r.error) { S.setup.msg = { text: `Not applied: ${r.error}.`, err: true }; commitStart(); return; } S.brief.plannedSites = r.value; S.fpp.budget = r.value; S.fpp.budgetMode = 'custom'; S.setup.msg = null; }
+    if (simulationNeeded()) { clearTimeout(debounce); debounce = setTimeout(() => { recompute(); renderAll(); }, 60); }
+    commitStart();
   } else if (t.dataset.brief != null) commitStart();
 });
 
@@ -8910,7 +8979,7 @@ const TASKS = {
 };
 const TASK_OF_STEP = ['study', 'evidence', 'study', 'plan', 'plan', 'report'];
 const taskOf = i => TASK_OF_STEP[i] || 'study';
-let guidedRun = false, studyReviewed = false;
+let guidedRun = false, studyReviewed = false, userMovedDuringRun = false;
 // Open/closed state of the collapsible task sections, remembered while the page is open (presentation only)
 const SEC_OPEN = {};
 const secOpen = (k, dflt) => (k in SEC_OPEN ? SEC_OPEN[k] : dflt) ? 'open' : '';
@@ -8964,7 +9033,7 @@ function taskActionsHtml() {
   const text = err || (current ? (p ? 'The analysis is current for the inputs shown. Changing an input recalculates it; an old forecast is never shown as current.' : 'Results are current for the inputs shown; exports reflect this analysis.')
     : block.length ? block[0]
     : p?.act === 'reviewStudy' ? 'Check the study details, the extracted criteria and the optional data before running.'
-    : p?.act === 'setupRun' ? `Run parses the protocol, queries ClinicalTrials.gov${S.claude.key ? ', researches countries after you approve the request' : ''} and runs the forecast in the background. The Report opens when it succeeds.`
+    : p?.act === 'setupRun' ? `Run parses the protocol, queries ClinicalTrials.gov${S.claude.key ? ', researches countries after you approve the request' : ''} and runs the forecast in the background. The Report opens when it succeeds, unless you have moved to another tab in the meantime.`
     : staleStages().length ? 'Inputs changed since the last analysis: forecasts are withheld until it is updated.' : 'No current forecast is available: update the analysis to recalculate.');
   return `<div class="msg ${err ? 'err' : ''}" role="status">${demo}${esc(text)}</div><div class="btn-row">${p ? `<button class="btn btn-accent" id="primaryAction" data-act="${p.act}"${p.task ? ` data-task="${p.task}"` : ''} ${block.length ? 'disabled' : ''}>${p.label}</button>` : ''}</div>`;
 }
@@ -8985,13 +9054,14 @@ startHtml = function () {
   const fpl = parseFootprint(S.brief.sponsorFootprint), o = S.setup.override || {}, M = S.meta || {};
   const fromProto = k => M[k === 'target' ? 'target' : 'months'];
   const pnote = k => o[k] != null && fromProto(k) && fromProto(k) !== o[k] ? `<span class="note">Your value; the protocol states ${fmt(fromProto(k))}.</span>` : o[k] == null && fromProto(k) ? '<span class="note">Taken from the protocol.</span>' : '';
-  const noCount = fpl.filter(x => x.sites == null).length;
+  const noCount = fpl.filter(x => x.sites == null).length, fullCount = fpl.length > 0 && !noCount, fpTotal = fpl.reduce((a, x) => a + (x.sites || 0), 0);
   return `<div class="setup-bar"><div><span class="eyebrow">Study details</span><h2 id="startTitle">${esc(S.brief.condition || S.meta?.title || 'New study')}</h2></div>
       <div class="btn-row"><button class="btn btn-sm btn-ghost" data-act="startDemo" title="Generated patients, sites and trial history; everything it loads is labelled as demo data">Try the synthetic demo</button></div></div>
     <div class="field-grid">
       <label class="field">Indication (registry search terms)<input data-brief="condition" value="${esc(S.brief.condition)}" placeholder="e.g. ulcerative colitis"></label>
       <label class="field">Target randomized<input type="number" min="1" step="1" data-setup="target" value="${esc(S.params.target)}">${pnote('target')}</label>
       <label class="field">Enrollment window (months, from study start incl. start-up)<input type="number" min="1" step="1" data-setup="deadline" value="${esc(S.params.deadline)}">${pnote('deadline')}</label>
+      <label class="field" title="The total number of sites you plan. It sets the recommended footprint's size and lets the forecast compare this plan with completed trials that had a similar number of patients per site.">Planned number of sites (optional)<input type="number" min="1" step="1" data-plansites value="${S.brief.plannedSites > 0 ? esc(S.brief.plannedSites) : ''}" placeholder="${fullCount ? `${fmt(fpTotal)} from proposed countries` : `default ${fmt(DEFAULT_FPP.budget)}`}">${(() => { const plan = fullCount ? fpTotal : +S.brief.plannedSites || 0; return S.fpp.budgetMode === 'custom' && plan && S.fpp.budget !== plan ? `<span class="note">The recommended footprint uses ${fmt(S.fpp.budget)} sites (Plan › Site budget); the plan has ${fmt(plan)}.</span>` : ''; })()}</label>
     </div>
     <label class="field">Proposed countries and site counts (optional, one per line)<textarea class="brief" data-brief="sponsorFootprint" rows="3" placeholder="United States: 40&#10;United Kingdom: 15&#10;Germany: 20">${esc(S.brief.sponsorFootprint)}</textarea></label>
     <div class="note">${fpl.length ? `${fpl.length} ${fpl.length === 1 ? 'country' : 'countries'} · ${fmt(fpl.reduce((a, x) => a + (x.sites || 0), 0))} sites${noCount ? ` (${noCount} without a site count)` : ''}.` : 'Without proposed countries the tool proposes a footprint but has no sponsor plan to compare.'} The protocol, its extracted criteria and optional supporting data follow below.</div>
@@ -9015,8 +9085,10 @@ function studyReviewHtml() {
       : isStale(2) ? checkRow('need', 'Protocol', 'The protocol changed after parsing: parse it again to review the current criteria.')
       : C.length ? checkRow('info', 'Extracted criteria', `${fmt(C.length)} criteria from ${esc(S.parseInfo?.engine || 'the parser')}: ${fmt(C.length - manual)} computable${low ? ` (${fmt(low)} low-confidence)` : ''}, ${fmt(manual)} for manual review${off ? `, ${fmt(off)} switched off` : ''}. They are listed above for your review; nothing is marked as reviewed or approved automatically, and manual-review requirements still need site confirmation.`)
       : checkRow('info', 'Extracted criteria', `Not parsed yet. Use “Parse (rule-based NLP)” under Protocol parsing options above to review the criteria before running; otherwise the protocol is parsed when you run, ${parser}.`),
-    checkRow(fpl.length ? 'ok' : 'info', 'Proposed countries', fpl.length ? `${fpl.length} ${fpl.length === 1 ? 'country' : 'countries'} · ${fmt(fpl.reduce((a, x) => a + (x.sites || 0), 0))} sites` : 'Optional. Without it the tool proposes a footprint but has no sponsor plan to compare.'),
-    ...(!fpl.length ? [checkRow(S.fpp.budget === DEFAULT_FPP.budget ? 'need' : 'info', 'Site budget', S.fpp.budget === DEFAULT_FPP.budget ? `No proposed countries, so the recommendation uses the default budget of ${fmt(S.fpp.budget)} sites. Set the planned number of sites under Plan (budget mode Custom) before reading the forecast.` : `${fmt(S.fpp.budget)} sites (set under Plan).`)] : []),
+    checkRow(fpl.length ? 'ok' : 'info', 'Proposed countries', fpl.length ? `${fpl.length} ${fpl.length === 1 ? 'country' : 'countries'} · ${fmt(fpl.reduce((a, x) => a + (x.sites || 0), 0))} sites${fpl.some(x => x.sites == null) ? `. ${fpl.filter(x => x.sites == null).length} without a site count: those get a share of the planned number of sites` : ''}` : 'Optional. Without it the tool proposes a footprint but has no sponsor plan to compare.'),
+    (() => { const ps = plannedSites();
+      return ps.source ? checkRow('ok', 'Planned sites', `${fmt(ps.sites)} ${ps.source === 'footprint' ? 'sites in the proposed countries' : 'planned sites'} · ${fmt1(S.params.target / ps.sites)} patients per site. Comparator trials are matched on patients per site${S.fpp.ppsMatch ? '' : ' only when that option is on (Plan › Model assumptions)'}.`)
+        : checkRow('need', 'Planned sites', `No planned number of sites, so the recommendation uses the default of ${fmt(S.fpp.budget)} sites and comparator trials cannot be matched on patients per site. Enter the planned number of sites above${fpl.length ? ' (or a site count for every proposed country)' : ''}.`); })(),
     checkRow(S.patients ? 'ok' : 'info', 'Patient data', S.patients ? `${fmt(S.patients.length)} pseudonymized records${S.provenance?.patients ? ' (synthetic demo)' : ''}` : 'Optional: the analysis runs at country and site level without it.'),
     checkRow(S.history ? 'ok' : 'info', 'Site performance history', S.history ? `${fmt(S.history.trials)} trials${S.provenance?.history ? ' (synthetic demo)' : ''}` : 'Optional. Without it, sites are forecast with the same prior recruitment rate instead of their own history.'),
     checkRow('info', 'Requests made when you run', `ClinicalTrials.gov is queried with the indication (public registry, no key). ${S.claude.key ? 'Country research with Claude runs after you approve the request and can incur charges.' : 'Country research is skipped until you add an Anthropic API key under Settings; neutral defaults are used.'} Patient records are never sent.`),
@@ -9233,6 +9305,44 @@ UI_TESTS.push(
   renderTasks();const tabs=$('#taskTabs')?.innerHTML||'',d=document.createElement('div');d.innerHTML=ws3();
   const expertNote=d.querySelector('.simple-only')?.textContent||'',tech=$('#detailStageTag')?.closest('details')?.textContent||'';
   return [!hits.length && !num.test(tabs) && !/class="steps"/.test(tabs) && ['Study','Evidence','Plan','Report'].every(l=>tabs.includes(`<b>${l}</b>`)) && /Settings/.test(expertNote) && !/header/i.test(expertNote) && /Step \d of 6/.test(tech) && /steps 1 and 3/.test(tech),JSON.stringify({hits:hits.slice(0,4),expertNote})];
+ }],
+ // v0.9.4: comparators matched on planned patients per site; planned number of sites under Study; no tab jump after a run
+ ['Matching','Comparators are matched on planned patients per site when the site count is entered; the planned load is never extrapolated; too few similar comparators keep the size weighting',async()=>{
+  const it=(rate,n,sites)=>({rate,n,pps:n/sites});
+  const six=(rate,load)=>[0.9,0.95,1,1,1.05,1.1].map((f,i)=>it(rate*f,load*(20+i),20+i));
+  const g={medRate:0.3,items:[...six(0.1,2),...six(1,20)]},F={...DEFAULT_FPP},plan=sites=>({sites,source:'planned'});
+  const thin=sizeMatchedRates({global:{medRate:0.3,items:[...six(0.1,2).slice(0,3),...six(1,20)]}},F,{target:100},plan(50));
+  const light=sizeMatchedRates({global:g},F,{target:100},plan(50)),heavy=sizeMatchedRates({global:g},F,{target:1000},plan(50)),over=sizeMatchedRates({global:g},F,{target:100000},plan(50));
+  const none=sizeMatchedRates({global:g},F,{target:100},{sites:75,source:null}),off=sizeMatchedRates({global:g},{...F,ppsMatch:0},{target:100},plan(50));
+  const legacy=sizeMatchedRates({global:{medRate:0.3,items:g.items.map(({rate,n})=>({rate,n}))}},F,{target:100},plan(50));
+  return [light.mode==='pps' && light.global<=0.12 && heavy.global>=0.9 && over.match.clamped==='high' && over.match.used===over.match.hi && over.global>=0.9 && none.mode==='size' && off.mode==='size' && legacy.mode==='size' && thin.mode==='size' && thin.match.applied===false,
+   JSON.stringify({light:light.global,heavy:heavy.global,over:{g:over.global,c:over.match.clamped},none:none.mode,off:off.mode,legacy:legacy.mode,thin:[thin.mode,thin.match.effective]})];
+ }],
+ ['Matching','The planned number of sites under Study sets the recommended budget and anchors the matching; Plan budget what-ifs keep the anchor; a complete proposed footprint takes precedence; clearing it restores the default',async()=>{
+  const host=$('#startHere'),keep=host.innerHTML,set=v=>{host.innerHTML=startHtml();const el=host.querySelector('[data-plansites]');el.value=v;el.dispatchEvent(new Event('change',{bubbles:true}));};
+  try{S.brief.sponsorFootprint='';set('120');const a={mode:S.fpp.budgetMode,budget:S.fpp.budget,plan:plannedSites()},review=/120 planned sites/.test(studyReviewHtml());
+   S.brief.sponsorFootprint='Aland: 30\nBorduria: 20';const b=plannedSites();S.brief.sponsorFootprint='Aland: 30\nBorduria';const c=plannedSites();
+   S.brief.sponsorFootprint='';S.fpp.budget=200;const whatIf=plannedSites().sites;
+   set('');const d={mode:S.fpp.budgetMode,budget:S.fpp.budget,plan:plannedSites(),brief:S.brief.plannedSites},need=/No planned number of sites/.test(studyReviewHtml());
+   const bad=validateProjectState({protocolText:'',brief:{},fpp:{ppsMatch:2}},{}).some(e=>/ppsMatch|Match comparators/.test(e));
+   return [a.mode==='custom' && a.budget===120 && a.plan.source==='planned' && review && b.source==='footprint' && b.sites===50 && c.source==='planned' && c.sites===120 && whatIf===120 && d.mode==='match' && d.budget===DEFAULT_FPP.budget && d.plan.source===null && d.brief===null && need && bad,JSON.stringify({a,b,c,whatIf,d,review,need,bad})];}
+  finally{host.innerHTML=keep;}
+ }],
+ ['Matching','With a complete sponsor footprint the forecast uses matched comparators, explains the basis, keeps them for a budget what-if and flags a load beyond the comparators',async()=>{
+  await r2Ready();const ok1=S.fp.matchMode==='pps' && S.fp.match?.source==='footprint' && /patients per site match this plan/.test(comparatorBasisNote());
+  const g0=S.fp.globalRate;S.fpp.budgetMode='custom';S.fpp.budget=S.fp.budgetB+10;computeFootprint(true);const keep=S.fp.globalRate===g0 && S.fp.budgetB===S.fpp.budget;S.fpp.budgetMode='match';
+  S.params.target=5000;await recompute();await waitFor(()=>simulationResultsCurrent());
+  const hi=S.fp.match?.clamped==='high' && (S.risks||[]).some(f=>/above 95% of comparator trials/.test(f.title));
+  S.fpp.ppsMatch=0;await recompute();await waitFor(()=>simulationResultsCurrent());const off=S.fp.matchMode!=='pps' && (S.risks||[]).some(f=>/not matched on patients per site/.test(f.title))===false;
+  return [ok1 && keep && hi && off,JSON.stringify({ok1,keep,hi,off,mode:S.fp.matchMode})];
+ }],
+ ['Tasks','Moving to another tab while the analysis runs keeps that tab when it finishes and says the Report is ready; staying put still opens the Report',async()=>{
+  const realRun=ACTIONS.runAll,realSens=ACTIONS.sensitivity,el=document.createElement('button');el.hidden=true;el.dataset.act='task';el.dataset.task='evidence';
+  try{await uiFixture();ACTIONS.sensitivity=async()=>{};
+   ACTIONS.runAll=async()=>{document.body.appendChild(el);el.click();};S.step=2;await runGuided();const moved={step:S.step,msg:S.setup.msg?.text};
+   ACTIONS.runAll=async()=>{};S.setup.msg=null;S.step=2;await runGuided();
+   return [moved.step===TASKS.evidence.step && /Report is ready/.test(moved.msg||'') && S.step===5,JSON.stringify({moved,after:S.step})];}
+  finally{el.remove();ACTIONS.runAll=realRun;ACTIONS.sensitivity=realSens;}
  }],
 );
 

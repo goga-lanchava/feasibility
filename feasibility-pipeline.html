@@ -2407,6 +2407,18 @@ const LLM_SCHEMA = (() => {
     },
   };
 })();
+/* An AI lab threshold is executed only in the concept's canonical unit: a stated unit is converted with the observation table (convertObs), otherwise the rule stays unresolved */
+function llmThresholdUnit(c) {
+  const canon = String(LABS[c.field]?.unit || '').trim(), sq = s => s.replace(/\s+/g, '').toLowerCase();
+  const u = String(c.unit ?? '').trim().replace(/10([⁹³])/g, (m, d) => '10^' + (d === '⁹' ? 9 : 3));
+  // nothing is executed in the stated unit when there is no threshold number (a ULN-only rule is computed from the canonical ULN); scores have no other scale
+  if (c.value == null && c.min == null && c.max == null) return { ok: true, values: {} };
+  if (!u || UNITLESS.has(c.field) || sq(u) === sq(canon) || (c.uln_multiple != null && /uln/i.test(u))) return { ok: true, values: {} };
+  if (!['ok', 'converted'].includes(convertObs(c.field, 1, u).status)) return { ok: false, reason: `${LABS[c.field].label} threshold unit “${c.unit}” cannot be converted to ${canon || 'the canonical unit'}` };
+  const values = {}; let note = null;
+  for (const k of ['value', 'min', 'max']) if (c[k] != null) { const r = convertObs(c.field, c[k], u); values[k] = r.value; note = r.note || note; }
+  return { ok: true, values, note };
+}
 function llmCriteriaToInternal(list, who = 'Claude') {
   let registered = 0;
   const conv = c => {
@@ -2419,7 +2431,13 @@ function llmCriteriaToInternal(list, who = 'Claude') {
       if (!key) return mkCrit({ kind: c.kind, type: 'manual', field: 'none', op: 'none', text: c.text, temporal: c.temporal || null, flags: [] });
       c.field = key; registered++;
     }
-    const base = { kind: c.kind, type: c.type, field: c.field, op: c.op, text: c.text, temporal: c.temporal || null, exceptText: c.exception || null, orGroup: c.or_group || null, flags: c.exception ? ['exception'] : [], source: 'llm' };
+    let unitNote = null;
+    if (c.type === 'lab' && LABS[c.field]) {
+      const u = llmThresholdUnit(c);
+      if (!u.ok) return mkCrit({ kind: c.kind, type: 'manual', field: 'none', op: 'none', text: c.text, temporal: c.temporal || null, flags: [], source: 'llm', invalidReason: u.reason });
+      c = { ...c, ...u.values }; unitNote = u.note || null;
+    }
+    const base = { kind: c.kind, type: c.type, field: c.field, op: c.op, text: c.text, temporal: c.temporal || null, exceptText: c.exception || null, orGroup: c.or_group || null, flags: c.exception ? ['exception'] : [], source: 'llm', ...(unitNote ? { unitNote } : {}) };
     if (c.type === 'sex') return mkCrit({ ...base, op: 'eq', value: c.field });
     if (c.type === 'biomarker' && c.op === 'eq') return mkCrit({ ...base, valueText: c.value_text || 'positive' });
     if (['lab', 'age', 'lines', 'biomarker'].includes(c.type)) {
@@ -4230,6 +4248,7 @@ function validateLlmItem(c, i) {
   if (typeof c.text !== 'string') e.push(`${at}.text must be a string`);
   for (const k of ['value', 'min', 'max', 'uln_multiple']) if (c[k] != null && !(typeof c[k] === 'number' && isFinite(c[k]))) e.push(`${at}.${k} must be a number or null`);
   if (c.synonyms != null && !Array.isArray(c.synonyms)) e.push(`${at}.synonyms must be a list`);
+  if (c.unit != null && typeof c.unit !== 'string') e.push(`${at}.unit must be a string or null`);
   if (['age', 'lab', 'lines'].includes(c.type) && c.op === 'between' && (c.min == null || c.max == null || c.min > c.max)) e.push(`${at}: a range needs min ≤ max`);
   if (['age', 'lab', 'lines'].includes(c.type) && ['>=', '>', '<=', '<'].includes(c.op) && c.value == null && c.uln_multiple == null) e.push(`${at}: numeric comparison needs a value`);
   return e;
@@ -8904,6 +8923,7 @@ const GEMINI_TESTS = [
  ['Conversion','A valid answer becomes criteria in the existing schema, validated, attributed to Gemini, ready for human review',async()=>{gSetup(()=>gOk(G_SAMPLE()));const res=await parseProtocolGemini(S.protocolText);const age=res.criteria.find(c=>c.type==='age');applyParse(res);return [res.criteria.length===2 && age.op==='between' && age.min===18 && age.max===75 && res.criteria.every(c=>validateCriterion(c).length===0) && res.criteria.every(c=>c.source==='llm' && c.llmBy==='Gemini' && (c.type==='manual' || /Gemini/.test((c.reasons||[]).join(' '))) ) && /Gemini/.test(S.parseInfo.engine) && S.criteria.length===2 && S.meta.target===300 && S.params.target===300 && S.criteria.every(c=>c.llmBy==='Gemini'),JSON.stringify(res.criteria.map(c=>c.type+':'+c.field))];}],
  ['Conversion','A single ```json fence around the answer is accepted',async()=>{gSetup(()=>gOk('```json\n'+JSON.stringify(G_SAMPLE())+'\n```'));const res=await parseProtocolGemini(S.protocolText);return [res.criteria.length===2,'fenced'];}],
  ['Conversion','Omitted optional keys are treated as null',async()=>{const it=G_ITEM();delete it.unit;delete it.or_group;delete it.value;delete it.temporal;gSetup(()=>gOk({...G_SAMPLE(),criteria:[it]}));const res=await parseProtocolGemini(S.protocolText);return [res.criteria.length===1 && validateCriterion(res.criteria[0]).length===0,'ok'];}],
+ ['Conversion','AI lab thresholds run in the canonical unit: g/L and mmol/mol are converted, an unconvertible unit stays unresolved',async()=>{const L=o=>G_ITEM({type:'lab',field:'hemoglobin',concept_label:'Hemoglobin',op:'>=',min:null,max:null,text:'Hemoglobin',...o});const r=llmCriteriaToInternal([L({unit:'g/L',value:100,text:'Hb ≥ 100 g/L'}),L({unit:'g/dL',value:10,text:'Hb ≥ 10 g/dL'}),L({field:'hba1c',unit:'mmol/mol',op:'between',min:53,max:86,text:'HbA1c 53-86 mmol/mol'}),L({unit:'mg/mL',value:100,text:'Hb ≥ 100 mg/mL'}),L({field:'alt',unit:'xULN',op:'<=',value:null,uln_multiple:2.5,text:'ALT ≤ 2.5 xULN'}),L({field:'ecog',unit:'ECOG grade',op:'<=',value:1,text:'ECOG ≤ 1'})],'Gemini');const [a,b,h,x,alt,ecog]=r;const p={labObs:{hemoglobin:[{value:12,status:'ok'}]}};return [r.length===6 && a.value===10 && a.unitNote==='g/L → g/dL' && evalLab(a,p).s==='T' && b.value===10 && !b.unitNote && h.min===7 && h.max===10.02 && x.type==='manual' && /mg\/mL/.test(x.invalidReason||'') && alt.type==='lab' && alt.value===100 && ecog.type==='lab' && ecog.value===1,JSON.stringify(r.map(c=>[c.type,c.value??null,c.min??null,c.max??null,c.unitNote||null]))];}],
  ['Malformed','Not-JSON answer is rejected and nothing changes',async()=>{gSetup(()=>gOk('Sure! Here are the criteria: age 18-75'));S.criteria=null;const e=await gFail(()=>parseProtocolGemini(S.protocolText));return [e?.kind==='malformed' && !S.criteria,e?.message];}],
  ['Malformed','JSON with trailing prose, an array, or no criteria list is rejected',async()=>{const bad=['{"criteria":[]} and more text','[1,2]','{"title":"x"}','{"criteria":[]}'];const kinds=[];for(const b of bad){gSetup(()=>gOk(b));const e=await gFail(()=>parseProtocolGemini(S.protocolText));kinds.push(e?.kind);}return [kinds.every(k=>k==='malformed'),kinds.join(',')];}],
  ['Malformed','An item failing the existing validator rejects the whole answer; no vocabulary is registered',async()=>{gSetup(()=>gOk(G_SAMPLE([G_PROBE(),G_ITEM({op:'roughly',text:'bad op'})])));gForget();const e=await gFail(()=>parseProtocolGemini(S.protocolText));const reg=!!CONDITIONS.zz_gemini_probe;gForget();return [e?.kind==='invalid' && /roughly/.test(e.message) && !reg,e?.message];}],

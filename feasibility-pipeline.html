@@ -473,7 +473,7 @@ body[data-view="expert"] .simple-only { display: none !important; }
 <input type="file" id="fileFeedback" accept=".csv,text/csv" hidden><input type="file" id="fileMarket" accept=".csv,text/csv" hidden><input type="file" id="fileRules" accept=".json,application/json" hidden><input type="file" id="fileBench" accept=".csv,.tsv,.txt,text/csv,text/tab-separated-values,text/plain" hidden>
 
 <!-- Numerical engine: generated from src/mc-kernels.js and src/mc-worker.js by `node tools/build.mjs`. Do not edit between these tags. -->
-<script id="mc-kernels" data-sha256="9ef331624ee3091b0335a1cd2d0c5ebe076a3b844d441fff496eaae996eb64be">
+<script id="mc-kernels" data-sha256="5cdd82b1d502f8595212c6b1933ac90b18a2a161ad7c97fbed07f83f1ea3451a">
 /* mc-kernels — Monte Carlo recruitment kernels for the Trial Feasibility Pipeline (single source of truth).
  * Edit this file, then run `node tools/build.mjs` to embed it in feasibility-pipeline.html.
  * Pure functions: no DOM, no application state, no network, no dynamic code compilation.
@@ -629,6 +629,8 @@ function optimizeAllocCore(F,rows,budget,sponsorAlloc = {}) {
     const n = Math.min(want, cap, perMax, budget - total, regRoom);
     if (n < want) diag.infeasible.push(`${c}: keep ≥ ${want} not achievable, limited to ${Math.max(0, n)} by ${n === cap ? `capacity (${cap} usable experienced sites)` : n === perMax ? 'the max-share limit' : n === regRoom ? `the region cap (${r.region}, ${regMax} sites)` : 'the budget'}`);
     if (n > 0) { alloc[c] = n; total += n; if (r.region) regUsed[r.region] = (regUsed[r.region] || 0) + n; }
+    // Sponsor retention is an explicit exception to “Only researched”: keep the sites, but record it
+    if (n > 0 && F.onlyResearched && anyIntel && !r.intel) diag.notes.push(`${c}: ${n} sites kept as the sponsor-country minimum although the country has no web research (“Only researched” is on)`);
   }
   const pool = rows.filter(r => r.allow && !r.assumed && effectiveCap(r) >= F.minSites && r.value > 0 && (!F.onlyResearched || !anyIntel || r.intel));
   for (const r of pool.sort((a, b) => b.value - a.value)) {
@@ -4497,6 +4499,15 @@ const ENGINE_TESTS = [
   ['8 · Allocation', 'An impossible minimum presence returns an infeasibility explanation', async () => {
     const fp = tFootprintSetup('Carpania: 4', { keepMin: 50 });
     return [fp.diag.infeasible.some(x => /Carpania/.test(x) && /not achievable/.test(x)), fp.diag.infeasible.join(' | ')];
+  }],
+  ['8 · Allocation', 'A keep-minimum in an unresearched sponsor country under “Only researched” is kept and reported', async () => {
+    const keep = S.intel; S.fpOv = {}; S.intel = {}; S.brief.sponsorFootprint = '';
+    S.intel[intelKey('Aland')] = { country: 'Aland', key: intelKey('Aland'), at: new Date().toISOString(), startup_months: 6 };
+    try {
+      const fp = tFootprintSetup('Borduria: 6', { keepMin: 5, onlyResearched: 1, budgetMode: 'custom', budget: 15, maxShare: 1, minSites: 1 });
+      const note = fp.diag.notes.find(x => /Borduria/.test(x) && /no web research/.test(x));
+      return [fp.allocB.Borduria === 5 && !!note && !fp.diag.notes.some(x => /Aland/.test(x)), `allocation ${JSON.stringify(fp.allocB)}; ${note || 'no note'}`];
+    } finally { S.intel = keep; }
   }],
   ['9 · Totals', 'Distributed sponsor sites sum exactly to the budget', async () => {
     const fp = tFootprintSetup('Aland\nBorduria\nCarpania', { budget: 10 });

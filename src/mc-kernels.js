@@ -153,6 +153,8 @@ function optimizeAllocCore(F,rows,budget,sponsorAlloc = {}) {
     const n = Math.min(want, cap, perMax, budget - total, regRoom);
     if (n < want) diag.infeasible.push(`${c}: keep ≥ ${want} not achievable, limited to ${Math.max(0, n)} by ${n === cap ? `capacity (${cap} usable experienced sites)` : n === perMax ? 'the max-share limit' : n === regRoom ? `the region cap (${r.region}, ${regMax} sites)` : 'the budget'}`);
     if (n > 0) { alloc[c] = n; total += n; if (r.region) regUsed[r.region] = (regUsed[r.region] || 0) + n; }
+    // Sponsor retention is an explicit exception to “Only researched”: keep the sites, but record it
+    if (n > 0 && F.onlyResearched && anyIntel && !r.intel) diag.notes.push(`${c}: ${n} sites kept as the sponsor-country minimum although the country has no web research (“Only researched” is on)`);
   }
   const pool = rows.filter(r => r.allow && !r.assumed && effectiveCap(r) >= F.minSites && r.value > 0 && (!F.onlyResearched || !anyIntel || r.intel));
   for (const r of pool.sort((a, b) => b.value - a.value)) {

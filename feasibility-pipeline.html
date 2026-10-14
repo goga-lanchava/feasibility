@@ -1929,8 +1929,9 @@ function parseComparison(raw) {
   if (best.op !== 'between') {
     const lower = best.op === '>=' || best.op === '>';
     const other = cands.find(c => c !== best && c.op !== 'between' && c.index >= best.end && (lower ? (c.op === '<=' || c.op === '<') : (c.op === '>=' || c.op === '>')));
-    // Keep each endpoint's strictness: "> 18 and < 65" excludes 18 and 65
-    if (other) { const lo = lower ? best : other, hi = lower ? other : best; best = { op: 'between', min: lo.value, max: hi.value, index: best.index, end: other.end }; if (lo.op === '>') best.minStrict = true; if (hi.op === '<') best.maxStrict = true; }
+    // Keep each endpoint's strictness: "> 18 and < 65" excludes 18 and 65. Two comparators with min > max ("> 160 or < 90") are
+    // marked as outside limits; a reversed range from BETWEEN_RE/RANGE_RE carries no comparators and is not marked
+    if (other) { const lo = lower ? best : other, hi = lower ? other : best; best = { op: 'between', min: lo.value, max: hi.value, index: best.index, end: other.end }; if (lo.op === '>') best.minStrict = true; if (hi.op === '<') best.maxStrict = true; if (lo.value > hi.value) best.outside = true; }
   }
   best.unitText = s.slice(best.end, best.end + 28);
   return best;
@@ -2191,7 +2192,7 @@ function parseCriterionLine(line, section, ctx = {}) {
     const ageText = work.replace(/(?:for\s+)?(?:≥|>=|at least\s+)?\d+(?:\.\d+)?\s*(?:or more\s+)?(?:days?|weeks?|months?)\b/gi, m => ' '.repeat(m.length));
     const cmp = parseComparison(ageText.slice(w0, at + 70));
     if (cmp && cmp.uln == null) {
-      const { index, end, unitText, ...c } = cmp; out.push(make({ type: 'age', field: 'age', ...c }));
+      const { index, end, unitText, outside, ...c } = cmp; out.push(make({ type: 'age', field: 'age', ...c }));
       spans.push([w0 + index, w0 + (end ?? index)]);
       if (ageKw) spans.push([ageKw.index, ageKw.index + ageKw[0].length]);
     }
@@ -2222,6 +2223,9 @@ function parseCriterionLine(line, section, ctx = {}) {
       if (pc && pc.uln == null && pre.slice(pc.end ?? 0).replace(/[%\s]|of|the/gi, '').length <= 2) { cmp = pc; cmp.unitText = pre.slice(pc.end ?? 0) + work.slice(lm.index + lm.len, lm.index + lm.len + 20); preAt = p0; }
     }
     if (!cmp) return;
+    // A reversed range without comparators ("between 160 and 90", "160-90 mmHg") may be two outside limits, a range written high to
+    // low or a blood-pressure reading: no rule is guessed, the numbers stay uninterpreted and the criterion goes to review
+    if (cmp.op === 'between' && cmp.min > cmp.max && !cmp.outside) return;
     if (preAt >= 0) spans.push([preAt, lm.index]);
     const flags = borrowed ? ['borrowed'] : [];
     const c = { type: 'lab', field: lm.key, op: cmp.op, flags };
@@ -2234,9 +2238,10 @@ function parseCriterionLine(line, section, ctx = {}) {
       if (cmp.op === 'between') Object.assign(c, { min: cmp.min, max: cmp.max }, cmp.minStrict && { minStrict: true }, cmp.maxStrict && { maxStrict: true }); else c.value = cmp.value;
       if (cmp.unitNote) c.unitNote = cmp.unitNote;
     }
-    // "> 160 or < 90" read as a range with min > max: it is two outside limits (either one excludes; for an inclusion, either qualifies)
+    // "> 160 or < 90" read as a range with min > max: it is two outside limits (either one excludes; for an inclusion, either qualifies).
+    // Each limit keeps its own comparator, so "≥ 160 or ≤ 90" stays inclusive
     if (c.op === 'between' && c.min > c.max) {
-      const hi = { ...c, op: '>', value: c.min }, lo = { ...c, op: '<', value: c.max }; for (const k of ['min', 'max', 'minStrict', 'maxStrict']) { delete hi[k]; delete lo[k]; }
+      const hi = { ...c, op: c.minStrict ? '>' : '>=', value: c.min }, lo = { ...c, op: c.maxStrict ? '<' : '<=', value: c.max }; for (const k of ['min', 'max', 'minStrict', 'maxStrict']) { delete hi[k]; delete lo[k]; }
       if (section === 'exc') { labCrits.push({ c: hi, at: lm.index }, { c: lo, at: lm.index }); }
       else labCrits.push({ c: { type: 'group', logic: 'OR', field: 'any', op: 'any', items: [{ ...hi, kind: 'inc' }, { ...lo, kind: 'inc' }] }, at: lm.index });
       spans.push([lm.index, lm.index + lm.len + seg.length]);
@@ -2252,7 +2257,7 @@ function parseCriterionLine(line, section, ctx = {}) {
   const lm = digits.match(LINES_RE);
   if (lm) {
     const cmp = parseComparison(digits.slice(Math.max(0, lm.index - 45), lm.index + lm[0].length + 15));
-    if (cmp && cmp.uln == null && (cmp.value ?? cmp.max) <= 15) { const { index, end, unitText, ...c } = cmp; out.push(make({ type: 'lines', field: 'prior_lines', ...c })); spans.push([Math.max(0, lm.index - 45), lm.index + lm[0].length + 15]); }
+    if (cmp && cmp.uln == null && (cmp.value ?? cmp.max) <= 15) { const { index, end, unitText, outside, ...c } = cmp; out.push(make({ type: 'lines', field: 'prior_lines', ...c })); spans.push([Math.max(0, lm.index - 45), lm.index + lm[0].length + 15]); }
   }
   // Disease status
   const statusCrits = [];
@@ -2298,7 +2303,7 @@ function parseCriterionLine(line, section, ctx = {}) {
     spans.push([Math.max(0, bm.index - before.length), bm.index + bm.len + after.length]);
     if (!neg && bm.key === 'eln') { const r = ((after + ' ' + before).match(/favou?rable|intermediate|adverse/i) || [''])[0].toLowerCase().replace('favour', 'favor'); val = r || 'any'; }
     const c = { type: 'biomarker', field: bm.key };
-    if (numCmp && numCmp.uln == null && val !== 'negative') { const { index, end, unitText, ...n } = numCmp; Object.assign(c, n); } else Object.assign(c, { op: 'eq', valueText: val });
+    if (numCmp && numCmp.uln == null && val !== 'negative') { const { index, end, unitText, outside, ...n } = numCmp; Object.assign(c, n); } else Object.assign(c, { op: 'eq', valueText: val });
     out.push(make(c));
   });
   // Conditions & medications (skip words already claimed by status / biomarker / lines phrases)
@@ -2609,6 +2614,11 @@ const PARSER_TESTS = [
   ['exc', 'Has received systemic therapy for the treatment of their stage IV NSCLC', ['MANUAL_REVIEW']],
   ['protocol', 'Inclusion Criteria:\n1. Postmenopausal status was defined either by:\n   * Prior bilateral oophorectomy\n   * Age ≥60\n   * Age <60 and amenorrhea for 12 or more months\nExclusion Criteria:\n1. Type 1 diabetes', ['ANY(MANUAL_REVIEW, age >= 60, age < 60)', 'NOT HAS_DX(t1dm)']],
   ['protocol', 'INCLUSION CRITERIA\n1. Adequate organ function, defined as:\n   a. ANC ≥ 1.0 × 10^9/L\n   b. Platelets ≥ 75 × 10^9/L\n2. ECOG 0-2\nEXCLUSION CRITERIA\n1. Any of the following within 6 months prior to randomization:\n   - Myocardial infarction\n   - Stroke\n2. Women who are pregnant, or\n   who are breastfeeding', ['Absolute neutrophil count >= 1', 'Platelets >= 75', 'ECOG performance status BETWEEN 0 AND 2', 'NOT HAS_DX(mi)', 'NOT HAS_DX(stroke)', 'NOT HAS_DX(pregnancy)']],
+  // v0.9.7: two outside limits keep each comparator's own strictness; a reversed range without comparators is not guessed
+  ['exc', 'Systolic blood pressure ≥ 160 or ≤ 90 mmHg', ['NOT Systolic BP <= 90', 'NOT Systolic BP >= 160']],
+  ['inc', 'Systolic blood pressure > 160 or ≤ 90 mmHg', ['ANY(Systolic BP > 160, Systolic BP <= 90)']],
+  ['exc', 'Systolic blood pressure between 160 and 90 mmHg', ['MANUAL_REVIEW']],
+  ['exc', 'Systolic blood pressure 160-90 mmHg', ['MANUAL_REVIEW']],
 ];
 function runParserTests() {
   const results = PARSER_TESTS.map(([section, text, expected]) => {

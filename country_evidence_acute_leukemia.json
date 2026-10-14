@@ -1,0 +1,224 @@
+[
+  {
+    "country": "United States",
+    "prevalence_per_100k": null,
+    "incidence_per_100k": 4.4,
+    "population_millions": null,
+    "comparator_access": "broad",
+    "soc_access": "broad",
+    "same_class_access": "unknown",
+    "startup_months": 4.1,
+    "soc_summary": "Venetoclax + hypomethylating agent has been FDA-approved for newly diagnosed AML in patients aged 75+ or unfit for intensive chemotherapy since 2018 and is a guideline first-line option, so the comparator is routinely available outside trials.",
+    "regulatory_summary": "FDA IND plus IRB/site contracting. KMR benchmark: North America has the shortest start-up cycle time of any region (4.1 months), though activating many US sites can take much longer after the first one.",
+    "recruitment_notes": "Largest acute-leukemia site base, but also the most crowded: about 200 recruiting acute leukemia trials have US sites (ClinicalTrials.gov pull in the tool). Comparator access offers little enrollment incentive.",
+    "confidence": "high",
+    "sources": [
+      { "title": "SEER Cancer Stat Facts: Acute Myeloid Leukemia", "url": "https://seer.cancer.gov/statfacts/html/amyl.html", "supports": "incidence_per_100k (4.4 per 100,000/year, age-adjusted, 2019-2023)" },
+      { "title": "ACCC: FDA approves venetoclax for acute myeloid leukemia", "url": "https://www.accc-cancer.org/view/fda-approves-venetoclax-for-acute-myeloid-leukemia", "supports": "comparator_access (FDA approval with HMA/LDAC for newly diagnosed unfit AML)" },
+      { "title": "Applied Clinical Trials: Synchronizing study start across regions (KMR Group)", "url": "https://www.appliedclinicaltrialsonline.com/view/synchronizing-study-start-across-regions-leads-improved-global-trial-performance", "supports": "startup_months (North America 4.1 months)" },
+      { "title": "Friends of Cancer Research: US oncology trial start-up in a global context", "url": "https://friendsofcancerresearch.org/blog/data-driven-insights-fast-to-start-slow-to-scale-u-s-oncology-trial-start-up-in-a-global-context/", "supports": "regulatory_summary (fast first-site activation, slow scale-up to 75% of US sites)" }
+    ]
+  },
+  {
+    "country": "United Kingdom",
+    "prevalence_per_100k": null,
+    "incidence_per_100k": null,
+    "population_millions": null,
+    "comparator_access": "broad",
+    "soc_access": "broad",
+    "same_class_access": "unknown",
+    "startup_months": null,
+    "soc_summary": "NICE TA765 (Feb 2022) recommends venetoclax + azacitidine for untreated AML when intensive chemotherapy is unsuitable, within its marketing authorisation and subject to the commercial arrangement. NICE estimated about 650 eligible patients.",
+    "regulatory_summary": "MHRA plus HRA/REC approval. No citable country-specific start-up benchmark was found, so the tool default applies.",
+    "recruitment_notes": "Comparator is NHS standard of care for unfit AML, so randomization offers little access incentive. Eligible population per NICE is modest (~650/year).",
+    "confidence": "high",
+    "sources": [
+      { "title": "NICE TA765: Venetoclax with azacitidine for untreated AML when intensive chemotherapy is unsuitable", "url": "https://www.nice.org.uk/guidance/ta765", "supports": "comparator_access (recommended Feb 2022)" },
+      { "title": "NICE TA765 resource impact report", "url": "https://nice.org.uk/guidance/ta765/resources/resource-impact-report-pdf-10953195805", "supports": "recruitment_notes (~650 eligible patients)" }
+    ]
+  },
+  {
+    "country": "Germany",
+    "prevalence_per_100k": null,
+    "incidence_per_100k": null,
+    "population_millions": null,
+    "comparator_access": "broad",
+    "soc_access": "broad",
+    "same_class_access": "unknown",
+    "startup_months": null,
+    "soc_summary": "G-BA (Dec 2021) found an indication of considerable added benefit for venetoclax + azacitidine over azacitidine in newly diagnosed AML unfit for intensive chemotherapy. The DGHO describes the combination as the new standard for this population, and it is reimbursed by statutory insurance.",
+    "regulatory_summary": "EU-CTR (CTIS) authorisation plus ethics review. No citable country-specific start-up benchmark was found, so the tool default applies.",
+    "recruitment_notes": "Comparator is routine standard of care, so it offers little enrollment incentive. Germany has one of the largest experienced acute leukemia site bases in Europe.",
+    "confidence": "high",
+    "sources": [
+      { "title": "G-BA Nutzenbewertung Venetoclax (D-696), Beschluss 02.12.2021", "url": "https://www.g-ba.de/bewertungsverfahren/nutzenbewertung/704/", "supports": "comparator_access (considerable added benefit, reimbursed)" },
+      { "title": "DGHO Stellungnahme Venetoclax (2021)", "url": "https://www.dgho.de/publikationen/stellungnahmen/fruehe-nutzenbewertung/venetoclax/venetoclax-dgho-stellungnahme-20211006.pdf/@@download/file/Venetoclax DGHO Stellungnahme 20211006.pdf", "supports": "soc_summary (new standard of care)" }
+    ]
+  },
+  {
+    "country": "France",
+    "prevalence_per_100k": null,
+    "incidence_per_100k": null,
+    "population_millions": null,
+    "comparator_access": "broad",
+    "soc_access": "broad",
+    "same_class_access": "unknown",
+    "startup_months": null,
+    "soc_summary": "HAS Transparency Committee (June 2021): SMR important and ASMR III (moderate improvement) for venetoclax + azacitidine in newly diagnosed AML ineligible for intensive induction. Reimbursement applies only to the azacitidine combination.",
+    "regulatory_summary": "EU-CTR (CTIS) authorisation plus CPP ethics review. No citable country-specific start-up benchmark was found, so the tool default applies.",
+    "recruitment_notes": "Comparator is reimbursed standard of care. Note that HAS restricts reimbursement to the azacitidine combination, not other HMAs.",
+    "confidence": "high",
+    "sources": [
+      { "title": "HAS: Venclyxto (vénétoclax) – leucémie aiguë myéloïde", "url": "https://has-sante.fr/jcms/p_3284614/fr/venclyxto-venetoclax-leucemie-aigue-myeloide", "supports": "comparator_access (SMR important, ASMR III)" },
+      { "title": "Vidal: 2 indications supplémentaires remboursables pour Venclyxto", "url": "https://www.vidal.fr/actualites/30336-leucemie-2-indications-supplementaires-remboursables-pour-venclyxto.html", "supports": "comparator_access (hospital reimbursement listing, July 2023)" }
+    ]
+  },
+  {
+    "country": "Italy",
+    "prevalence_per_100k": null,
+    "incidence_per_100k": null,
+    "population_millions": null,
+    "comparator_access": "broad",
+    "soc_access": "broad",
+    "same_class_access": "unknown",
+    "startup_months": null,
+    "soc_summary": "AIFA Determina 248/2023 (GU 1 April 2023): venetoclax + azacitidine reimbursed by the SSN (class H, AIFA monitoring registry) for adults with newly diagnosed AML unfit for intensive chemotherapy, from 2 April 2023. Earlier access was via Law 648/96 for relapsed/refractory AML.",
+    "regulatory_summary": "EU-CTR (CTIS) authorisation plus ethics review. No citable country-specific start-up benchmark was found, so the tool default applies.",
+    "recruitment_notes": "Comparator is reimbursed in routine care, but prescribing is limited to hospital haematology centres with an AIFA registry.",
+    "confidence": "high",
+    "sources": [
+      { "title": "AIFA Determina 248/2023 Venclyxto", "url": "https://www.aifa.gov.it/documents/20142/961234/Determina_248-2023_Venclyxto.pdf", "supports": "comparator_access (SSN reimbursement from April 2023)" },
+      { "title": "AIFA: registro Venclyxto LMA", "url": "https://www.aifa.gov.it/en/-/attivazione-web-e-pubblicazione-schede-di-monitoraggio-registro-venclxto-lma-", "supports": "soc_summary (monitoring registry)" }
+    ]
+  },
+  {
+    "country": "Spain",
+    "prevalence_per_100k": null,
+    "incidence_per_100k": null,
+    "population_millions": null,
+    "comparator_access": "unknown",
+    "soc_access": "unknown",
+    "same_class_access": "unknown",
+    "startup_months": null,
+    "soc_summary": "Venetoclax with an HMA is authorised for newly diagnosed AML unfit for intensive chemotherapy (AEMPS label), and Andalusia's GHEMA hospital evaluation covers venetoclax + azacitidine. No national SNS financing decision or IPT for the AML indication was found; access may vary by region.",
+    "regulatory_summary": "EU-CTR (CTIS) authorisation plus CEIm ethics review. No citable country-specific start-up benchmark was found, so the tool default applies.",
+    "recruitment_notes": "If national financing is restricted or regional, trial access to the comparator could be an enrollment incentive. Verify with local affiliates.",
+    "confidence": "low",
+    "sources": [
+      { "title": "AEMPS CIMA: Venclyxto ficha técnica", "url": "https://cima.aemps.es/cima/dochtml/ft/161138002/FT_161138002.html", "supports": "soc_summary (authorised indication)" },
+      { "title": "GHEMA (Andalucía): Venetoclax + azacitidina en LMA", "url": "https://www.sspa.juntadeandalucia.es/servicioandaluzdesalud/sites/default/files/sincfiles/wsas-media-mediafile_sasdocumento/2023/VENETOCLAX_AZACITIDINA_GHEMA_0.pdf", "supports": "soc_summary (regional hospital evaluation)" }
+    ]
+  },
+  {
+    "country": "Canada",
+    "prevalence_per_100k": null,
+    "incidence_per_100k": null,
+    "population_millions": null,
+    "comparator_access": "restricted",
+    "soc_access": "restricted",
+    "same_class_access": "unknown",
+    "startup_months": null,
+    "soc_summary": "CADTH/pCODR (Aug 2021) recommended reimbursing venetoclax + azacitidine with conditions: newly diagnosed AML aged 75+ or with comorbidities precluding intensive chemotherapy, prescriber expertise, and a price reduction. Coverage is provincial (e.g., Cancer Care Ontario listing).",
+    "regulatory_summary": "Health Canada CTA (30-day review) plus REB approval. No citable country-specific start-up benchmark was found, so the tool default applies.",
+    "recruitment_notes": "Conditional, province-by-province coverage leaves some patients without routine access, which gives the comparator modest incentive value.",
+    "confidence": "medium",
+    "sources": [
+      { "title": "CADTH pCODR final recommendation: Venclexta + azacitidine (PC0238)", "url": "https://cadth.ca/sites/default/files/DRR/2021/PC0238%20Venclexta%20(AZA)%20-%20Final%20Rec.pdf", "supports": "comparator_access (reimburse with conditions)" },
+      { "title": "Cancer Care Ontario drug formulary: venetoclax regimen", "url": "https://cancercareontario.ca/drugformulary/regimens/monograph/66881", "supports": "soc_summary (provincial listing)" }
+    ]
+  },
+  {
+    "country": "Australia",
+    "prevalence_per_100k": null,
+    "incidence_per_100k": null,
+    "population_millions": null,
+    "comparator_access": "broad",
+    "soc_access": "broad",
+    "same_class_access": "unknown",
+    "startup_months": null,
+    "soc_summary": "Venetoclax + azacitidine was PBS-listed for AML from 1 December 2021, cutting patient cost from over $88,000 per course to standard co-payments. The Leukaemia Foundation estimated about 340 eligible patients per year.",
+    "regulatory_summary": "CTN/CTA scheme plus HREC approval. No citable country-specific start-up benchmark for late-phase trials was found, so the tool default applies.",
+    "recruitment_notes": "Comparator is fully reimbursed, so it offers little access incentive. The eligible pool is small (~340/year).",
+    "confidence": "medium",
+    "sources": [
+      { "title": "Leukaemia Foundation: venetoclax now available through PBS", "url": "https://www.leukaemia.org.au/news/vital-cancer-treatment-now-available-through-pharmaceutical-benefits-scheme-pbs-for-more-australians-living-with-blood-cancer/", "supports": "comparator_access (PBS listing Dec 2021), recruitment_notes (~340 patients/year)" },
+      { "title": "PBAC public summary document: venetoclax, July 2021", "url": "https://www.pbs.gov.au/industry/listing/elements/pbac-meetings/psd/2021-07/files/venetoclax-psd-july-2021.docx", "supports": "soc_summary (PBAC recommendation)" }
+    ]
+  },
+  {
+    "country": "Poland",
+    "prevalence_per_100k": null,
+    "incidence_per_100k": null,
+    "population_millions": null,
+    "comparator_access": "restricted",
+    "soc_access": "restricted",
+    "same_class_access": "unknown",
+    "startup_months": 4.5,
+    "soc_summary": "Since 1 September 2022, AML drug programme B.114 reimburses venetoclax + azacitidine first-line, alongside midostaurin, gemtuzumab ozogamicin and (in newer versions) ivosidenib, oral azacitidine and gilteritinib. Access runs through programme centres with eligibility criteria. Before 2022, patients had almost no modern options.",
+    "regulatory_summary": "EU-CTR (CTIS) authorisation. A Polish CRO guide puts typical start-up at 3–6 months (7–9 for complex projects); 4.5 months used as the midpoint.",
+    "recruitment_notes": "Lower saturation than Western Europe (about 0.4 recruiting trials per known site in the registry pull). Programme-based access means some patients reach the comparator later, which gives it some incentive value.",
+    "confidence": "medium",
+    "sources": [
+      { "title": "Programme B.114: treatment of acute myeloid leukaemia", "url": "https://hematoonkologia.pl/uploads/programy-lekowe/b-114-leczenie-chorych-na-ostra-bialaczke-szpikowa-dikD5.pdf", "supports": "comparator_access (drug programme coverage)" },
+      { "title": "mp.pl: Most AML patients will gain access to effective therapies", "url": "https://www.mp.pl/pacjent/onkologia/aktualnosci/304867,wiekszosc-chorych-na-aml-zyska-dostep-do-skutecznych-terapii", "supports": "soc_summary (listing from 1 Sept 2022)" },
+      { "title": "Biostat: How long does the start-up phase of a clinical trial last in Poland?", "url": "https://www.biostat.com.pl/how_long_does_the_start_up_phase_of_a_clinical_trial_last_in_poland_realistic_timelines_and_factors_affecting_the_project_start.php", "supports": "startup_months (3–6 months typical; midpoint 4.5)" }
+    ]
+  },
+  {
+    "country": "South Korea",
+    "prevalence_per_100k": null,
+    "incidence_per_100k": null,
+    "population_millions": null,
+    "comparator_access": "restricted",
+    "soc_access": "restricted",
+    "same_class_access": "unknown",
+    "startup_months": null,
+    "soc_summary": "Since February 2023, venetoclax + decitabine or azacitidine is reimbursed first-line only for newly diagnosed AML patients aged 75+ who are unfit for induction chemotherapy, under a risk-sharing agreement renewed in July 2024.",
+    "regulatory_summary": "MFDS IND plus IRB. No citable country-specific start-up benchmark was found, so the tool default applies.",
+    "recruitment_notes": "Unfit patients under 75 lack reimbursed access, so trial access to venetoclax is a meaningful incentive for that group. Major academic centres (SNUH, Samsung, Severance) are experienced in venetoclax AML studies.",
+    "confidence": "medium",
+    "sources": [
+      { "title": "Dailypharm: Venclexta reimbursement and RSA renewal in Korea", "url": "https://dailypharm.com/eng/user/news/6848", "supports": "comparator_access (≥75 only, RSA renewed July 2024)" },
+      { "title": "ClinicalTrials.gov NCT04826523: venetoclax post-marketing study in Korean AML patients", "url": "https://clinicaltrials.gov/study/NCT04826523", "supports": "recruitment_notes (experienced Korean sites)" }
+    ]
+  },
+  {
+    "country": "Japan",
+    "prevalence_per_100k": null,
+    "incidence_per_100k": null,
+    "population_millions": null,
+    "comparator_access": "unknown",
+    "soc_access": "unknown",
+    "same_class_access": "unknown",
+    "startup_months": 5.4,
+    "soc_summary": "MHLW granted venetoclax orphan designation for AML in June 2020, and VIALE-A Japanese subgroup data support venetoclax + azacitidine as first-line standard of care for unfit patients. The AML approval date and NHI listing could not be confirmed from the sources found.",
+    "regulatory_summary": "PMDA Clinical Trial Notification (30-day review for initial submissions) plus IRB. KMR benchmark: Japan start-up cycle 5.4 months, shorter than average.",
+    "recruitment_notes": "Low saturation in the registry pull (about 0.35 recruiting trials per known site) and a large experienced site base. Japanese participation is often needed for PMDA filing.",
+    "confidence": "low",
+    "sources": [
+      { "title": "Pharma Japan: MHLW orphan designation for venetoclax in AML", "url": "https://pj.jiho.jp/node/241068", "supports": "soc_summary (orphan designation June 2020)" },
+      { "title": "VIALE-A Japanese subgroup (Jpn J Clin Oncol 2021)", "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC9242001", "supports": "soc_summary (standard of care for unfit patients)" },
+      { "title": "Applied Clinical Trials: Synchronizing study start across regions (KMR Group)", "url": "https://www.appliedclinicaltrialsonline.com/view/synchronizing-study-start-across-regions-leads-improved-global-trial-performance", "supports": "startup_months (Japan 5.4 months)" }
+    ]
+  },
+  {
+    "country": "China",
+    "prevalence_per_100k": null,
+    "incidence_per_100k": null,
+    "population_millions": null,
+    "comparator_access": "unknown",
+    "soc_access": "unknown",
+    "same_class_access": "unknown",
+    "startup_months": null,
+    "soc_summary": "Venetoclax was approved in China in December 2020 for older or unfit AML patients, and in-hospital sales exceeded RMB 1.5 billion in 2023 (secondary source), indicating wide use. National Reimbursement Drug List (NRDL) status for AML could not be confirmed from the sources found.",
+    "regulatory_summary": "NMPA CTA under a 60-working-day implied-approval clock (30-working-day fast track since 2025 for qualifying innovative drugs), plus Human Genetic Resources filing or approval, ethics review and hospital contracting. Total start-up months could not be quantified from current sources.",
+    "recruitment_notes": "Very crowded: about 188 recruiting acute leukemia trials have Chinese sites (1.4 per known site in the registry pull), concentrated in large haematology centres.",
+    "confidence": "low",
+    "sources": [
+      { "title": "ASH 2023 abstract: venetoclax use in China since December 2020 approval", "url": "https://ash.confex.com/ash/2023/webprogram/Paper189654.html", "supports": "soc_summary (approval Dec 2020)" },
+      { "title": "Freyr: 60-day silent approval mechanism for clinical trials in China", "url": "https://www.freyrsolutions.com/what-is-the-60-day-silent-approval-mechanism-for-clinical-trials-in-china", "supports": "regulatory_summary (60-working-day CTA clock)" },
+      { "title": "China 30-day IND fast track guide", "url": "https://en.reach24h.com/news/industry-news/pharmaceutical/china-30-day-ind-fast-track-guide", "supports": "regulatory_summary (30-working-day track)" },
+      { "title": "Hogan Lovells: impact of China's HGR rules on clinical trials", "url": "https://www.hlc.com/en/publications/jpm2024-impact-of-chinas-hgr-rules-on-clinical-trials-and-scientific-studies-involving-china-sites", "supports": "regulatory_summary (HGR filing vs approval)" }
+    ]
+  }
+]

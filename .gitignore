@@ -1,0 +1,5 @@
+# Old single-file copies; git history replaces them
+*-backup.html
+# Local Claude Code settings
+.claude/
+node_modules/

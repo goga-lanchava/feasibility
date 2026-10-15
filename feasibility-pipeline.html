@@ -1,11 +1,11 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-theme="dark">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Trial Feasibility Pipeline</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Google+Sans+Flex:wght@300..700&family=Google+Sans+Code:ital,wght@0,300..700;1,300..700&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@300..700&family=Geist+Mono:wght@400..600&display=swap">
 <style>
 :root {
   --surface: #fdfcfc; --surface-dim: #f2f0f0; --surface-bright: #ffffff;
@@ -16,8 +16,8 @@
   --warn: #9a5b00; --warn-container: #fff0d2;
   --accent-container: #dcf1ff; --primary: #3186ff; --on-primary: #ffffff;
   --outline: #727676; --stroke-default: #e3e3e3;
-  --ff-sans: 'Google Sans Flex', system-ui, -apple-system, 'Segoe UI', sans-serif;
-  --ff-mono: 'Google Sans Code', ui-monospace, 'Cascadia Code', Consolas, monospace;
+  --ff-sans: 'Geist', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --ff-mono: 'Geist Mono', ui-monospace, 'Cascadia Code', Consolas, monospace;
   --r-s: 8px; --r-m: 12px; --r-full: 999px;
   color-scheme: light;
 }
@@ -10313,5 +10313,141 @@ resize();start();
 h.addEventListener('pointermove',v=>{e=v;if(r)return;r=requestAnimationFrame(()=>{r=0;const b=h.getBoundingClientRect();
 h.style.setProperty('--gx',(e.clientX-b.left)+'px');h.style.setProperty('--gy',(e.clientY-b.top)+'px');});},{passive:true});})();
 </script>
+<style id="cf-panels-style">
+/* Collapsible panels (expert tools, AI assist, logs): chevron header, raised when open. Suites and AI panels are recognised
+   by the controls they contain, so no markup or test hook changes. */
+details.claude{padding:0;background:var(--surface-dim);border:1px solid var(--stroke-default);border-radius:12px;transition:border-color .15s,background-color .15s}
+details.claude>summary{list-style:none;display:flex;align-items:center;gap:10px;padding:10px 14px;border-radius:11px;font-size:13px;font-weight:500;line-height:1.35;transition:background-color .15s}
+details.claude>summary::-webkit-details-marker{display:none}
+details.claude>summary::before{content:"";flex:none;width:6px;height:6px;margin:0 3px 0 1px;border-right:1.5px solid currentColor;border-bottom:1.5px solid currentColor;transform:rotate(-45deg);opacity:.55;transition:transform .2s ease,opacity .2s}
+details.claude>summary:hover{background:rgba(255,255,255,.035)}
+details.claude>summary:hover::before{opacity:1}
+details.claude[open]{background:var(--surface-bright);border-color:rgba(255,255,255,.12)}
+details.claude[open]>summary{border-bottom:1px solid var(--stroke-default);border-radius:11px 11px 0 0}
+details.claude[open]>summary::before{transform:rotate(45deg);opacity:1}
+details.claude>summary:focus-visible{outline:2px solid var(--primary);outline-offset:2px}
+details.claude>:not(summary){margin-left:14px;margin-right:14px}
+details.claude>summary+*{margin-top:12px}
+details.claude>:last-child:not(summary){margin-bottom:14px}
+details.claude .tbl-wrap{max-height:380px;overflow:auto}
+details.claude .tbl th{z-index:1}
+
+/* Verification suites: status dot (grey = not run, green = all passed, red = failures) and highlighted failing rows */
+details.claude:is(:has(>.btn-row [data-act$="Tests"]),:has(>.btn-row [data-act="selfTest"]))>summary::after{content:"";flex:none;margin-left:auto;width:8px;height:8px;border-radius:50%;background:var(--outline);box-shadow:0 0 0 3px color-mix(in srgb,var(--outline) 18%,transparent)}
+details.claude:is(:has(>.btn-row [data-act$="Tests"]),:has(>.btn-row [data-act="selfTest"])):has(>.btn-row .chip.ok)>summary::after{background:var(--positive);box-shadow:0 0 0 3px color-mix(in srgb,var(--positive) 22%,transparent)}
+details.claude:is(:has(>.btn-row [data-act$="Tests"]),:has(>.btn-row [data-act="selfTest"])):has(>.btn-row :is(.chip.high,.chip.med))>summary::after{background:var(--error);box-shadow:0 0 0 3px color-mix(in srgb,var(--error) 22%,transparent)}
+details.claude:is(:has(>.btn-row [data-act$="Tests"]),:has(>.btn-row [data-act="selfTest"])):has(>.btn-row :is(.chip.high,.chip.med)){border-color:color-mix(in srgb,var(--error) 35%,transparent)}
+details.claude:is(:has(>.btn-row [data-act$="Tests"]),:has(>.btn-row [data-act="selfTest"])) .btn-row .chip{font-size:11.5px;padding:2px 9px}
+details.claude .tbl tr:has(.chip.high) td{background:color-mix(in srgb,var(--error) 8%,transparent)}
+
+/* Vocabulary editor: add form on an inset tray, compact one-line rows */
+details.claude:has([data-act="addVocab"])>.field-grid{padding:12px;background:rgba(0,0,0,.18);border:1px solid var(--stroke-default);border-radius:10px}
+details.claude:has([data-act="addVocab"]) .tbl td:first-child{white-space:nowrap;font:500 10.5px var(--ff-mono);text-transform:uppercase;letter-spacing:.05em;color:var(--on-surface-variant)}
+details.claude:has([data-act="addVocab"]) .tbl td.mono{white-space:nowrap;overflow-wrap:normal;color:var(--primary);font-size:12px}
+details.claude:has([data-act="addVocab"]) .tbl td:last-child{text-align:right}
+details.claude:has([data-act="addVocab"]) [data-act="delVocab"]:hover:not(:disabled){color:var(--error);background:var(--error-container)}
+
+/* AI assist and provider panels: accent edge and an "AI" tag */
+details.claude:is(:has(#aiProvider),:has(#geminiKey),[data-sec="claudeSettings"],[data-sec="parseOptions"],:has([data-act^="llm"])){border-left:2px solid color-mix(in srgb,var(--primary) 70%,transparent)}
+details.claude:is(:has(#aiProvider),:has(#geminiKey),[data-sec="claudeSettings"],[data-sec="parseOptions"],:has([data-act^="llm"]))>summary::after{content:"AI";flex:none;margin-left:auto;padding:1px 7px;border-radius:999px;font:600 10.5px var(--ff-mono);letter-spacing:.06em;color:var(--primary);background:var(--accent-container)}
+details.claude:is(:has(#aiProvider),:has(#geminiKey),[data-sec="claudeSettings"],[data-sec="parseOptions"],:has([data-act^="llm"])) textarea.proto{background:rgba(0,0,0,.25)}
+details.claude:is(:has(#aiProvider),:has(#geminiKey),[data-sec="claudeSettings"],[data-sec="parseOptions"],:has([data-act^="llm"])) input[type=password]{font-family:var(--ff-mono);letter-spacing:.08em}
+
+/* Task tabs: one highlight slides to the selected tab (added by the script below; without it the original selected style stays) */
+.task-tabs.has-glider{position:relative}
+.task-tabs.has-glider>.task-tab{position:relative;z-index:1}
+.task-tabs.has-glider>.task-tab[aria-selected="true"]{background:transparent;border-color:transparent;box-shadow:none}
+.task-glider{position:absolute;left:0;top:0;z-index:0;pointer-events:none;border-radius:var(--r-s);background:var(--surface-bright);border:1px solid var(--primary);box-shadow:var(--shadow-1),inset 0 -2px 0 var(--primary)}
+@media (prefers-reduced-motion:reduce){details.claude,details.claude>summary,details.claude>summary::before{transition:none}}
+</style><script id="cf-tabs-script">
+/* Sliding tab highlight. renderTasks() rebuilds #taskTabs, so the highlight is re-inserted after each rebuild and animated
+   from the previous tab's box with the Web Animations API. Visual only: no state is read or changed. */
+(function(){
+const nav=document.getElementById('taskTabs');if(!nav)return;
+const reduce=matchMedia('(prefers-reduced-motion: reduce)');let last=null;
+const glider=document.createElement('span');glider.className='task-glider';glider.setAttribute('aria-hidden','true');
+function place(){
+  const tab=nav.querySelector('.task-tab[aria-selected="true"]');
+  if(!tab||!tab.offsetWidth){glider.remove();nav.classList.remove('has-glider');last=null;return;}
+  if(glider.parentNode!==nav)nav.prepend(glider);nav.classList.add('has-glider');
+  const box={x:tab.offsetLeft,y:tab.offsetTop,w:tab.offsetWidth,h:tab.offsetHeight};
+  glider.style.width=box.w+'px';glider.style.height=box.h+'px';glider.style.transform=`translate(${box.x}px,${box.y}px)`;
+  if(last&&!reduce.matches&&(last.x!==box.x||last.y!==box.y||last.w!==box.w)){
+    glider.animate([{transform:`translate(${last.x}px,${last.y}px)`,width:last.w+'px',height:last.h+'px'},{transform:`translate(${box.x}px,${box.y}px)`,width:box.w+'px',height:box.h+'px'}],{duration:320,easing:'cubic-bezier(.3,.7,.2,1)'});
+  }
+  last=box;
+}
+new MutationObserver(()=>{if(glider.parentNode!==nav||nav.querySelector('.task-tab[aria-selected="true"]'))place();}).observe(nav,{childList:true});
+if(window.ResizeObserver)new ResizeObserver(()=>{last=null;place();}).observe(nav);
+place();
+})();
+</script>
+<style id="cf-contrast-style">
+/* Clear layers: page (veil) → solid near-black cards with depth → darker input wells with a visible edge.
+   Primary actions are the brightest element on screen; labels and headings are lifted above helper text. */
+:root[data-theme="dark"]{
+  --card:#131316;--card-edge:rgba(255,255,255,.08);--well:#09090b;--well-edge:#3a414b;--well-edge-hover:#56606d;
+  --on-surface:#eef1f5;--on-surface-variant:#a3abb6;--label:#c3cad3;--stroke-default:#262a30;
+}
+/* Cards */
+.detail-card,.start-card,.settings-panel,.decision{background:var(--card);border:1px solid var(--card-edge);border-radius:18px;padding:22px;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.04),0 30px 60px -30px rgba(0,0,0,.8)}
+.detail-card:hover,.start-card:hover{box-shadow:inset 0 1px 0 rgba(255,255,255,.05),0 30px 60px -28px rgba(0,0,0,.85)}
+.start-card{border-left:1px solid var(--card-edge)}
+.task-actions{background:var(--card);border:1px solid var(--card-edge);border-radius:14px;box-shadow:inset 3px 0 0 var(--primary),0 20px 40px -24px rgba(0,0,0,.8)}
+.task-tabs{background:var(--card);border:1px solid var(--card-edge);border-radius:16px;padding:5px}
+.detail-title-group h2,.start-card h2:not(.eyebrow),.settings-panel h2{color:#fff;font-weight:600;letter-spacing:-.02em}
+.workspace{border-top-color:var(--stroke-default)}
+
+/* Numbered tabs; unselected ones step back, the selected one is bright */
+.task-tabs{counter-reset:task}
+.task-tab{counter-increment:task;color:var(--on-surface-variant)}
+.task-tab b{display:flex;align-items:baseline;gap:7px;color:#d5dae1}
+.task-tab b::before{content:counter(task,decimal-leading-zero);font:500 11px var(--ff-mono);color:var(--outline)}
+.task-tab:hover b{color:#fff}
+.task-tab[aria-selected="true"] b{color:#fff}
+.task-tab[aria-selected="true"] b::before{color:var(--primary)}
+.task-glider{background:#1e2025;border-color:rgba(255,255,255,.14);box-shadow:inset 0 -2px 0 var(--primary),0 6px 18px -8px rgba(0,0,0,.8)}
+
+/* Input wells: darker than the card, visible edge, clear hover and focus */
+.field{color:var(--label);font-weight:500;font-size:12.5px;gap:6px}
+.field input,.field select,textarea.proto,textarea.brief,.r2-form select,.r2-form input,#fpCompare select,.tbl input[type=number],details.claude textarea{
+  background:var(--well);border:1px solid var(--well-edge);border-radius:10px;color:#fff;transition:border-color .15s,box-shadow .15s}
+.field input,.field select{padding:8px 10px;font-size:13.5px;font-weight:400}
+.field input:hover,.field select:hover,textarea.proto:hover,textarea.brief:hover,.r2-form select:hover,.r2-form input:hover,.tbl input[type=number]:hover{border-color:var(--well-edge-hover)}
+.field input:focus,.field select:focus,textarea:focus,.r2-form select:focus,.r2-form input:focus,.tbl input[type=number]:focus{outline:none;border-color:var(--primary);box-shadow:0 0 0 3px color-mix(in srgb,var(--primary) 28%,transparent)}
+.field input::placeholder,textarea::placeholder{color:#6b7380}
+.field input[disabled],.field select[disabled],textarea[disabled]{opacity:.55}
+input[type=checkbox],input[type=radio],input[type=range]{accent-color:var(--primary)}
+.note{color:var(--on-surface-variant)}
+
+/* Buttons: primary is the brightest thing on the screen, secondary is a clear outlined chip */
+.btn{background:rgba(255,255,255,.05);border-color:rgba(255,255,255,.12);color:#e6e9ee}
+.btn:hover:not(:disabled){background:rgba(255,255,255,.1);border-color:rgba(255,255,255,.22);color:#fff}
+.btn-accent{background:#f2f3f6;border-color:#f2f3f6;color:#0a0a0c;font-weight:600;box-shadow:0 8px 24px -10px rgba(214,220,232,.45)}
+.btn-accent:hover:not(:disabled){background:#fff;border-color:#fff;color:#0a0a0c;filter:none}
+.btn-ghost{background:transparent;border-color:transparent;color:#cfd5dd}
+.btn-ghost:hover:not(:disabled){background:rgba(255,255,255,.06)}
+.btn:disabled{opacity:.38}
+
+/* Panels inside cards: a step lighter than the card, so they read as their own group */
+details.claude{background:rgba(255,255,255,.025);border-color:rgba(255,255,255,.08)}
+details.claude[open]{background:#17181c;border-color:rgba(255,255,255,.12)}
+.stat,.range-col,.r2-card,.r3-card,.r3-resp,.check-row,.next-list li,.flag,.path-card{background:rgba(255,255,255,.025);border-color:rgba(255,255,255,.08)}
+.stat .v{color:#fff}
+.tbl-wrap{border-color:rgba(255,255,255,.1);background:var(--card)}
+.tbl th{background:#1a1c20;color:#c3cad3}
+.tbl td{border-top-color:rgba(255,255,255,.06)}
+.empty{border-color:rgba(255,255,255,.14);color:var(--on-surface-variant)}
+.callout{background:color-mix(in srgb,var(--primary) 11%,var(--card));border:1px solid color-mix(in srgb,var(--primary) 30%,transparent)}
+.code,.survey{background:var(--well);border:1px solid var(--stroke-default)}
+.menu-pop{background:#17181c;border-color:rgba(255,255,255,.12)}
+@media (max-width:640px){.detail-card,.start-card,.settings-panel,.decision{padding:14px;border-radius:14px}}
+/* The title card must not clip the Project menu: let it overflow, keep the background effect clipped to the card, and lift
+   the card above the tabs below it */
+.pipeline-header{overflow:visible;z-index:20}
+.pipeline-header::before{inset:0;border-radius:inherit;clip-path:inset(0 round 16px);animation:none;transform:none}
+.menu-pop{z-index:40}
+</style>
 </body>
 </html>

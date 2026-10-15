@@ -330,7 +330,7 @@ body[data-view="expert"] .simple-only { display: none !important; }
 
   <header class="pipeline-header">
     <div class="pipeline-title-row">
-      <h1>Clinical Trial Feasibility · v0.9.7</h1>
+      <h1>Clinical Trial Feasibility · v0.9.8</h1>
       <div class="header-actions">
         <details class="menu" id="projectMenu"><summary class="btn btn-sm" title="Save, load or reset the analysis">Project</summary>
           <div class="menu-pop" role="group" aria-label="Project">
@@ -1182,13 +1182,15 @@ const RESEARCH_FIELD_USE = [
  * The internal value 'likely' is kept so earlier configurations still load; it is displayed as the central assumed scenario, which is a
  * scenario assumption about specified unverified requirements, not a calibrated likelihood or an expected eligible count. */
 const ELIG_BASIS = {
-  lower: { label: 'Lower — meets every machine-evaluated requirement', short: 'lower (conservative default)' },
+  lower: { label: 'Lower — meets every machine-evaluated requirement', short: 'lower (conservative)' },
   likely: { label: 'Central assumed scenario — includes specified unverified requirements', short: 'central assumed scenario' },
   upper: { label: 'Upper — every record not definitely failing', short: 'upper bound' },
 };
 const ELIG_BASIS_ALIASES = { lower: 'lower', likely: 'likely', central: 'likely', centralAssumed: 'likely', upper: 'upper' };
+// An unknown or damaged value falls back to the conservative pool; a missing one takes the default from DEFAULT_PARAMS
 const normEligBasis = v => ELIG_BASIS_ALIASES[v] || 'lower';
-const DEFAULT_PARAMS = { target: 300, deadline: 18, consent: 0.6, catchment: 8, actMin: 1, actMax: 4, sims: 2000, seed: 42, eligBasis: 'lower' };
+// v0.9.8: the headline forecast uses the central assumed scenario; the conservative pool is shown beside it as the lower bound
+const DEFAULT_PARAMS = { target: 300, deadline: 18, consent: 0.6, catchment: 8, actMin: 1, actMax: 4, sims: 2000, seed: 42, eligBasis: 'likely' };
 const DEFAULT_WEIGHTS = { density: 30, velocity: 25, quality: 20, capacity: 15, experience: 10 };
 const DEFAULT_BRIEF = { condition: '', comparator: '', investigational: '', mechanism: '', phases: { 1: false, 2: true, 3: true, 4: false }, since: new Date().getFullYear() - 12, asOf: '', industryOnly: true, sponsorFootprint: '', researchCountries: '', autoTopN: 10, maxSearches: 6, plannedSites: null };
 // v0.9.1 (retrospective test of 5 completed trials): maxShare 0.35 → 0.20; new enrollShareLong, sizeMatch, minEvidence, maxRegionShare, sigmaTrial (empty = from data)
@@ -5292,7 +5294,7 @@ function summarizeSim(s) { return { sites: s.nSites, runs: s.N, probabilityOfTar
 
 
 /* Audited extension: v0.3.0, research prototype. Offline inputs stay local. */
-const APP_VERSION = '0.9.7';
+const APP_VERSION = '0.9.8';
 const REPORT_SCHEMA = 'tfp-analysis/2';
 const FEEDBACK_COLS = ['site_id','site_name','country','interest','eligible_patients','enrollment_per_month','startup_months','competing_trials','response_date','challenges','source',
   'reporter','eligible_period_months','screened_per_month','randomized_per_month','enrollment_unit','screening_confirmation','competing_overlap','referral_pathways','investigators','coordinators','capabilities'];
@@ -5840,12 +5842,13 @@ ENGINE_TESTS.push(
    return [!ok && S.sim===null && MC.resultSignature===null && !!exportBlock(),JSON.stringify({ok,sim:S.sim,block:exportBlock()})];
   });
  }],
- ['v0.5.1 · C6 Scenario','The conservative lower pool is the default and unknown bases fall back to it; earlier configs using “likely” keep it with the new label',async()=>{
+ // v0.9.8: the default changed from the conservative lower pool to the central assumed scenario (approved by the user); every check is kept
+ ['v0.5.1 · C6 Scenario','The central assumed scenario is the default and shows its assumption; the conservative lower pool is selectable and unknown bases fall back to it',async()=>{
   const {patients}=await tIngest([tPat('p'),{...tMed('p','Metformin','2020-01-01'),status:'active'}]);
   const crit=[tC('inc','medication','metformin','present',{timing:'current',temporal:'for at least 3 months',text:'On a stable dose of metformin for at least 3 months'})];
-  const D=tCohort(patients,crit);S.params.eligBasis='nonsense';const X=computeCohort();S.params.eligBasis='likely';const L=computeCohort();
+  const L=tCohort(patients,crit);S.params.eligBasis='nonsense';const X=computeCohort();S.params.eligBasis='lower';const D=computeCohort();S.params.eligBasis=DEFAULT_PARAMS.eligBasis;
   const html=eligScenarioPanel(L),htmlLower=eligScenarioPanel(D);
-  return [DEFAULT_PARAMS.eligBasis==='lower' && D.basis==='lower' && D.eligible===0 && X.basis==='lower' && L.basis==='likely' && L.eligible===1 && html.includes(ELIG_BASIS.likely.label) && html.includes('Scenario assumption in use') && !htmlLower.includes('Scenario assumption in use') && htmlLower.includes('select it explicitly'),JSON.stringify({d:D.basis,x:X.basis,l:L.basis})];
+  return [DEFAULT_PARAMS.eligBasis==='likely' && D.basis==='lower' && D.eligible===0 && X.basis==='lower' && L.basis==='likely' && L.eligible===1 && html.includes(ELIG_BASIS.likely.label) && html.includes('Scenario assumption in use') && !htmlLower.includes('Scenario assumption in use') && htmlLower.includes('select it explicitly'),JSON.stringify({d:D.basis,x:X.basis,l:L.basis})];
  }],
  ['v0.5.1 · C6 Scenario','Pools reconcile (lower = meets; central = meets + confirmations; upper = meets + unresolved) and records keep their status',async()=>{
   const {patients}=await tIngest([tPat('a'),{...tMed('a','Metformin','2020-01-01'),status:'active'},tPat('b'),{...tMed('b','Metformin','2020-01-01'),status:'active'},tObs('b','1742-6',50,'U/L'),tPat('c'),{...tMed('c','Metformin','2020-01-01'),status:'active'},tPat('d'),{...tMed('d','Metformin','2020-01-01'),status:'active'},tObs('d','1742-6',50,'U/L')]);
@@ -5899,7 +5902,8 @@ ENGINE_TESTS.push(
  }],
  ['v0.5.1 · C6 Scenario','Switching the forecast basis invalidates an accepted forecast',async()=>{
   await tSignatureFixture();
-  return tWithLiveGuards(()=>{S.sim={};MC.resultSignature=simulationSignature();const before=simulationResultsCurrent();S.params.eligBasis='likely';const after=simulationResultsCurrent();return [before && !after,JSON.stringify({before,after})];});
+  // v0.9.8: the default basis is now 'likely', so the switch goes to 'lower' (and checks that this is a change)
+  return tWithLiveGuards(()=>{S.sim={};MC.resultSignature=simulationSignature();const before=simulationResultsCurrent(),was=S.params.eligBasis;S.params.eligBasis='lower';const after=simulationResultsCurrent();return [was!=='lower' && before && !after,JSON.stringify({was,before,after})];});
  }]
 );
 // Worker source = the static kernel script this page already executed + the worker message adapter (both embedded by tools/build.mjs).
@@ -6389,8 +6393,8 @@ function rangeModel() {
     const C = S.cohort, pick = b => R?.eligibility?.find(v => v.basis === b) || null;
     const unv = [...new Set(C.scenario.unverifiedRequirements.map(u => u.requirement))];
     out.push({ kind: 'emr', title: `EMR forecast: eligible-pool scenarios, ${R?.eligibilityScope || (S.portfolioSim ? 'selected sites' : 'all EMR-connected sites')}`, rows: [['emr', 'EMR sites']], cols: [
-      { b: 'lower', name: 'Conservative (lower pool)', records: C.range.lower, v: pick('lower'), what: `${C.range.lower ? `Counts only the ${fmt(C.range.lower)} records that meet` : 'No record meets'} every requirement the software could check. Records with missing or uncheckable data are left out. This is the default basis.` },
-      { b: 'likely', name: 'Central assumed scenario', records: C.range.likely, v: pick('likely'), what: `Adds ${fmt(C.confirmOnly)} records whose only open items are screening confirmations${unv.length ? ` (${unv.join('; ')})` : ''}. They are included by assumption: not confirmed eligible, and not a most-likely count.` },
+      { b: 'lower', name: 'Conservative (lower pool)', records: C.range.lower, v: pick('lower'), what: `${C.range.lower ? `Counts only the ${fmt(C.range.lower)} records that meet` : 'No record meets'} every requirement the software could check. Records with missing or uncheckable data are left out. The lower bound of the forecast.` },
+      { b: 'likely', name: 'Central assumed scenario', records: C.range.likely, v: pick('likely'), what: `Adds ${fmt(C.confirmOnly)} records whose only open items are screening confirmations${unv.length ? ` (${unv.join('; ')})` : ''}. They are included by assumption: not confirmed eligible, and not a most-likely count. This is the default basis.` },
       { b: 'upper', name: 'Upper', records: C.range.upper, v: pick('upper'), what: `Adds every record not definitely excluded (${fmt(C.unresolved)} unresolved in total), including missing data and criteria the software cannot check. The largest pool this data allows; a forecast on it is not a maximum, and not a target.` },
     ].map(c => ({ ...c, basis: c.b === C.basis })),
       separates: `Only the eligible pool differs: how records with unresolved eligibility are treated. Rates, consent, screen failure and activation are the same in all three. The headline forecast uses the ${ELIG_BASIS[C.basis].short} basis.` });
@@ -6415,6 +6419,12 @@ function zeroLowerNote() {
   const C = S.cohort; if (!C || C.basis !== 'lower' || C.range.lower > 0 || !(C.range.likely > 0 || C.range.upper > 0)) return '';
   const lk = S.sensitivity?.eligibility?.find(v => v.basis === 'likely');
   return `No record meets every requirement the software could check, so the conservative forecast is zero. ${C.range.likely > 0 ? `The central assumed scenario (${fmt(C.range.likely)} records${lk ? `, ${pct(lk.prob)} of runs reach the target` : ''}) holds only if the unverified screening requirements are met; confirm them with sites before relying on it.` : 'Only the upper bound has records; confirm the unresolved requirements with sites.'}`;
+}
+// v0.9.8: when the EMR forecast runs on the central assumed scenario, the headline states what it assumes and the conservative lower bound
+function lowerBoundNote() {
+  const C = S.cohort; if (!C || C.basis !== 'likely' || !headlineRows().some(r => r.kind === 'emr') || !(C.range.likely > C.range.lower)) return '';
+  const lo = S.sensitivity?.eligibility?.find(v => v.basis === 'lower'), unv = [...new Set(C.scenario.unverifiedRequirements.map(u => u.requirement))];
+  return `The EMR forecast uses the central assumed scenario: it includes ${fmt(C.confirmOnly)} records whose only open items are unverified screening requirements${unv.length ? ` (${unv.join('; ')})` : ''}; confirm them with sites before relying on it. Conservative lower bound: ${fmt(C.range.lower)} record${C.range.lower === 1 ? ' meets' : 's meet'} every requirement the software could check${lo ? ` (${pct(lo.prob)} of runs reach the target)` : ''}.`;
 }
 // v0.9.1: the window counts from study start and includes country start-up. Published recruitment periods count from the
 // first patient, so report that too: first month with median enrolment > 0, and median months from then to the target
@@ -6442,7 +6452,7 @@ function decisionSummary() {
   const H = headlineRows(); if (!H.length) return '';
   const lead = H[0], v = overallVerdict(H), T = S.params.target, D = S.params.deadline, top = topRisks();
   return `<section class="decision" aria-labelledby="decisionTitle"><div><span class="eyebrow">Decision summary</span><h2 id="decisionTitle" style="font-size:18px">Can ${fmt(T)} participants be randomized within ${fmt(D)} months?</h2></div>
-    <div class="verdict ${v.cls}"><span class="vt">${esc(v.text)}</span>${rangeSentence(lead.sim, D) ? `<span><b>${esc(lead.label)}, range:</b> ${esc(rangeSentence(lead.sim, D))}</span>` : ''}<span>${esc(lead.label)}: the target is reached in <b>${pct(lead.sim.prob)}</b> of simulated runs; median time to target ${esc(medTxt(lead.sim))}.${H.length > 1 ? ' ' + H.slice(1).map(r => `${esc(r.label)}: <b>${pct(r.sim.prob)}</b>.`).join(' ') : ''}</span>${zeroLowerNote() ? `<span class="note">${esc(zeroLowerNote())}</span>` : ''}<span class="note">${esc(verdictRule())}</span></div>
+    <div class="verdict ${v.cls}"><span class="vt">${esc(v.text)}</span>${rangeSentence(lead.sim, D) ? `<span><b>${esc(lead.label)}, range:</b> ${esc(rangeSentence(lead.sim, D))}</span>` : ''}<span>${esc(lead.label)}: the target is reached in <b>${pct(lead.sim.prob)}</b> of simulated runs; median time to target ${esc(medTxt(lead.sim))}.${H.length > 1 ? ' ' + H.slice(1).map(r => `${esc(r.label)}: <b>${pct(r.sim.prob)}</b>.`).join(' ') : ''}</span>${zeroLowerNote() ? `<span class="note">${esc(zeroLowerNote())}</span>` : ''}${lowerBoundNote() ? `<span class="note">${esc(lowerBoundNote())}</span>` : ''}<span class="note">${esc(verdictRule())}</span></div>
     <div class="tbl-wrap"><table class="tbl"><thead><tr><th>Forecast</th><th>Plan</th><th class="num">Runs reaching target</th><th class="num">Median months</th><th class="num">P90 months</th><th class="num" title="Median months from the first enrolled patient to the target, comparable with a published recruitment period (≈ = extrapolated beyond the simulated horizon)">Recruitment months from first patient</th></tr></thead><tbody>${H.map(r => `<tr><td><b>${esc(r.label)}</b></td><td style="font-size:12px;min-width:200px">${esc(r.sub)}</td><td class="num"><span class="chip ${verdictOf(r.sim.prob).cls === 'good' ? 'ok' : verdictOf(r.sim.prob).cls === 'warn' ? 'med' : 'high'}">${pct(r.sim.prob)}</span></td><td class="num">${isFinite(r.sim.medMonths) ? r.sim.medMonths : `>${r.sim.H}`}</td><td class="num">${isFinite(r.sim.p90Months) ? r.sim.p90Months : `>${r.sim.H}`}</td><td class="num">${fpiTxt(r.sim)}</td></tr>`).join('')}</tbody></table></div>
     ${(() => { const d = fpiDuration(lead.sim); return d ? `<div class="note">The ${fmt(D)}-month window counts from study start and includes country start-up: in this forecast the first patients enrol around month ${d.first}, leaving about ${fmt(Math.max(0, D - d.first))} months of recruitment. Published recruitment periods usually count from the first patient.</div>` : ''; })()}
     ${rangesHtml()}
@@ -6456,7 +6466,7 @@ function buildExecSummary() {
   L.push(`Feasibility executive summary: ${S.meta?.title || S.brief.condition || 'untitled study'}`, `Generated ${today()} · Trial Feasibility Pipeline v${APP_VERSION}`);
   if (demoActive()) L.push('', `DEMO / EXAMPLE INPUTS: ${provenanceSentence()}`);
   L.push('', `Question: can ${fmt(T)} participants be randomized within ${D} months?`);
-  if (H.length) L.push(`Answer: ${overallVerdict(H).text}.${zeroLowerNote() ? ' ' + zeroLowerNote() : ''}`, verdictRule());
+  if (H.length) L.push(`Answer: ${overallVerdict(H).text}.${zeroLowerNote() ? ' ' + zeroLowerNote() : ''}${lowerBoundNote() ? ' ' + lowerBoundNote() : ''}`, verdictRule());
   for (const r of H) if (rangeSentence(r.sim, D)) L.push(`- ${r.label}, range: ${rangeSentence(r.sim, D)}`);
   if ((S.fpp.speedScenario && S.fpp.speedScenario !== 'typical') || S.fpp.benchmarkRate > 0) L.push(`- Rate assumption: ${[S.fpp.speedScenario !== 'typical' ? SPEED_SCENARIOS[S.fpp.speedScenario]?.label : '', S.fpp.benchmarkRate > 0 ? `benchmark ${fmt2(S.fpp.benchmarkRate)} patients/site/month` : ''].filter(Boolean).join('; ')}.`);
   if (comparatorBasisNote()) L.push(`- Comparator basis: ${comparatorBasisNote()}`);
@@ -6665,6 +6675,15 @@ const UX_TESTS = [
  ['Destructive actions','Start demo with user work asks first; Cancel changes nothing and starts no run',async()=>{S.protocolText=UX_REAL_PROTOCOL;const before=S;let msg=null;UX_IO.confirm=m=>{msg=m;return false;};await ACTIONS.startDemo();return [S===before && S.protocolText===UX_REAL_PROTOCOL && !S.patients && !MC.current && /your protocol/.test(msg),msg];}],
  ['Scenario wording','Country recruitment-rate scenarios are named distinctly and never called a ceiling or upper bound',async()=>{S.fp={simB:{},rows:[]};const g=rangeModel()[0];const names=g.cols.map(c=>c.name);const prose=names.join(' ')+' '+g.cols.map(c=>c.what).join(' ').replace(/not an upper bound|not a lower bound/g,'');return [g.kind==='fp' && JSON.stringify(names)===JSON.stringify(['Lower-rate scenario (−25%)','As modelled','Higher-rate scenario (+25%)']) && !/ceiling|\bupper\b|central assumed/i.test(prose) && /recruitment-rate/.test(g.title) && /not eligibility pools/.test(g.separates),JSON.stringify(names)];}],
  ['Verdict','Verdict uses the 80% / 50% application thresholds and says they are not validated standards',async()=>{const v=[0.8,0.7999,0.5,0.4999].map(p=>verdictOf(p).cls).join(',');const t=verdictRule();return [v==='good,warn,warn,bad' && /80%/.test(t) && /50%/.test(t) && /not validated recruitment standards/.test(t) && /simulated outcomes/.test(t),v+' | '+t];}],
+ // v0.9.8: a sponsor-facing headline leads with the central case; the conservative pool is stated beside it as the lower bound
+ ['Verdict','The demo headline leads with the central assumed scenario and states the conservative pool as the lower bound, in the Decision Summary and the executive summary',async()=>{
+  // The same inputs as the one-click synthetic demo (runAll in EMR mode); demoProto is not used because it clears the registry history
+  S.params.sims=300;await loadDemoEmr('csv');loadDemoHistory();S.protocolText=DEMO_PROTOCOL;markExample('protocol','t2dm');runRules();await recompute();await waitFor(()=>simulationResultsCurrent());
+  await ACTIONS.sensitivity();await waitFor(()=>S.sensitivity?.eligibility);
+  const H=headlineRows(),v=overallVerdict(H),d=document.createElement('div');d.innerHTML=decisionSummary();const box=d.querySelector('.verdict')?.textContent.replace(/\s+/g,' ')||'',ex=buildExecSummary();
+  return [DEFAULT_PARAMS.eligBasis==='likely' && S.cohort.basis==='likely' && S.cohort.range.lower===0 && S.cohort.range.likely>0 && H[0].sim.prob>=0.8 && v.cls==='good' && /central assumed scenario/.test(H[0].sub)
+   && /Conservative lower bound: 0 records meet every requirement the software could check \(0% of runs reach the target\)/.test(box) && /unverified/.test(box) && /Conservative lower bound: 0 records/.test(ex) && !/so the conservative forecast is zero/.test(box),JSON.stringify({basis:S.cohort.basis,range:S.cohort.range,prob:H[0].sim.prob,v:v.text,box:box.slice(0,700)})];
+ }],
  ['Export gating','Without a current simulation the Decision Summary is withheld and the executive summary is not copied',async()=>{await loadDemoEmr('csv');ACTIONS.demoProto({dataset:{which:'t2dm'}});runRules();let copied=null;UX_IO.copy=async t=>{copied=t;};MC.resultSignature=null;await ACTIONS.copyExec();return [simulationNeeded() && !simulationResultsCurrent() && decisionSummary()==='' && copied===null && !!S.status[5]?.err,JSON.stringify(S.status[5])];}],
 ];
 async function runUxTests() {

@@ -140,3 +140,28 @@ Known compromises:
 - v0.9.8: about 55% coverage at about 5× width.
 
 Nothing more was tuned after lockbox 2. Any further change needs another fresh test set.
+
+## 9. Re-run of the first 50-trial lockbox with the committed v0.9.9 (narrow)
+
+This is not a blind test: that set had already been seen once. The narrow setting, however, was tuned without it. The data is a fresh registry snapshot, with all three settings run on it (`results/v099-lockbox1.jsonl`).
+
+| | v0.9.8 | v0.9.9 (narrow) |
+|---|---|---|
+| Inside P10–P90, all trials | 65% | **76%** |
+| Inside P10–P90, completed only | 81% | 81% |
+| Inside P10–P90, terminated for poor enrolment | 44% | **75%** |
+| Inside P25–P75, completed (should be 50%) | 32% | **55%** |
+| Median error, completed (signed) | +10% | **−2%** |
+| Share of forecasts that were too optimistic | 69% | **61%** |
+| Duration inside P10–P90 | 77% | **81%** |
+| Median miss (participants) | 68% | 65% |
+| Width P90/P10 | 5.1× | 8.4× |
+| Interval score (realistic mix) | 3.03 | 3.05 (tie) |
+
+**Reading.** On this set, v0.9.8 already did well on normally completed trials. The improvement shows in four places:
+- trials that stalled;
+- the middle band;
+- the removed optimistic lean;
+- duration.
+
+The cost is a range about 1.6× wider. Point accuracy barely moved.

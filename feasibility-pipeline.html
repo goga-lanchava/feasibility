@@ -330,7 +330,7 @@ body[data-view="expert"] .simple-only { display: none !important; }
 
   <header class="pipeline-header">
     <div class="pipeline-title-row">
-      <h1>Clinical Trial Feasibility · v0.9.9</h1>
+      <h1>Clinical Trial Feasibility · v0.9.10</h1>
       <div class="header-actions">
         <details class="menu" id="projectMenu"><summary class="btn btn-sm" title="Save, load or reset the analysis">Project</summary>
           <div class="menu-pop" role="group" aria-label="Project">
@@ -5318,7 +5318,7 @@ function summarizeSim(s) { return { sites: s.nSites, runs: s.N, probabilityOfTar
 
 
 /* Audited extension: v0.3.0, research prototype. Offline inputs stay local. */
-const APP_VERSION = '0.9.9';
+const APP_VERSION = '0.9.10';
 const REPORT_SCHEMA = 'tfp-analysis/2';
 const FEEDBACK_COLS = ['site_id','site_name','country','interest','eligible_patients','enrollment_per_month','startup_months','competing_trials','response_date','challenges','source',
   'reporter','eligible_period_months','screened_per_month','randomized_per_month','enrollment_unit','screening_confirmation','competing_overlap','referral_pathways','investigators','coordinators','capabilities'];
@@ -8428,19 +8428,42 @@ ws3 = function () {
  * allocation for a scenario comes from the same optimizer. Nothing changes the user's inputs unless an option is applied
  * explicitly with a reason. Results are scenario estimates from an unvalidated model.
  * ===================================================================== */
-const FLEX_DEFAULT = () => ({ goal: 0.8, window: { on: false, max: 6 }, budget: { on: false, max: 20 }, startup: { on: false, max: 2 }, target: { on: false, max: 10 }, outside: { on: false }, criteria: { on: false, ids: [] }, applied: [] });
-const FLEX_SCHEMA = { goal: { min: 0.5, max: 0.95, label: 'Goal' }, window: { int: true, min: 1, max: 36, label: 'Extra enrollment months' }, budget: { int: true, min: 1, max: 1000, label: 'Extra sites' }, startup: { min: 0.5, max: 12, label: 'Faster start-up (months)' }, target: { int: true, min: 1, max: 50, label: 'Target reduction (%)' } };
+const FLEX_DEFAULT = () => ({ goal: 0.8, window: { on: false, max: 6 }, budget: { on: false, max: 20 }, startup: { on: false, max: 2 }, target: { on: false, max: 10 }, outside: { on: false }, criteria: { on: false, ids: [] }, relax: { on: false, max: 4, ids: [] }, applied: [] });
+const FLEX_SCHEMA = { goal: { min: 0.5, max: 0.95, label: 'Goal' }, window: { int: true, min: 1, max: 36, label: 'Extra enrollment months' }, budget: { int: true, min: 1, max: 1000, label: 'Extra sites' }, startup: { min: 0.5, max: 12, label: 'Faster start-up (months)' }, target: { int: true, min: 1, max: 50, label: 'Target reduction (%)' }, relax: { int: true, min: 1, max: 10, label: 'Threshold relaxation steps' } };
 // Search order when shrinking a combined option: protocol-level changes are removed first, operational ones last
-const FLEX_ORDER = ['target', 'criteria', 'outside', 'window', 'budget', 'startup'];
+const FLEX_ORDER = ['target', 'criteria', 'relax', 'outside', 'window', 'budget', 'startup'];
 const flexCfg = () => S.flex || (S.flex = FLEX_DEFAULT());
 const flexModel = () => S.fp ? 'fp' : (S.cohort && S.sites && S.scores ? 'emr' : null);
 const flexCriteria = () => (S.criteria || []).filter(c => c.enabled && !c.essential && c.type !== 'manual');
+// v0.9.10: numeric thresholds that may be relaxed step by step (labs, age, prior lines, numeric biomarkers; never safety-essential).
+// One step loosens every ticked threshold in the direction that admits more patients: 5% of the threshold, whole years for age
+// (at least 1) and one line for prior therapy lines. A ULN-based lab limit relaxes its ULN multiple.
+const RELAX_PCT = 0.05;
+const relaxNumeric = c => ['lab', 'age', 'lines'].includes(c.type) || (c.type === 'biomarker' && c.op !== 'eq');
+const flexRelaxable = () => flexCriteria().filter(c => relaxNumeric(c) && (c.op === 'between' ? isFinite(c.min) && isFinite(c.max) : isFinite(c.value) || (c.value == null && isFinite(c.ulnMultiple))));
+const relaxUnit = (c, v) => c.type === 'lines' ? 1 : c.type === 'age' ? Math.max(1, Math.round(Math.abs(v) * RELAX_PCT)) : (Math.abs(v) * RELAX_PCT || 0.1);
+const relaxRound = (c, v) => c.type === 'lines' || c.type === 'age' ? Math.max(0, Math.round(v)) : +(+v.toPrecision(3)).toFixed(4);
+function relaxCrit(c, k) {
+  if (!(k > 0)) return c;
+  const r = { ...c }, inc = c.kind === 'inc', up = op => (op === '<=' || op === '<') === inc;  // raise the limit when that admits more patients
+  const move = (v, upward) => relaxRound(c, upward ? v + k * relaxUnit(c, v) : v - k * relaxUnit(c, v));
+  if (c.op === 'between') {
+    if (inc) { r.min = move(c.min, false); r.max = move(c.max, true); }
+    else { r.min = move(c.min, true); r.max = move(c.max, false); if (r.min > r.max) r.min = r.max = relaxRound(c, (c.min + c.max) / 2); }
+  } else if (c.value == null && isFinite(c.ulnMultiple)) r.ulnMultiple = +(c.ulnMultiple * (up(c.op) ? 1 + k * RELAX_PCT : Math.max(0, 1 - k * RELAX_PCT))).toFixed(2);
+  else r.value = move(c.value, up(c.op));
+  // An adult protocol is never relaxed into paediatric ages: a lower age limit of 18 or more stays at 18 or more
+  if (c.type === 'age' && inc) { if (c.op === 'between' && c.min >= 18) r.min = Math.max(18, r.min); else if ((c.op === '>=' || c.op === '>') && c.value >= 18) r.value = Math.max(18, r.value); }
+  return r;
+}
+const relaxedCriteria = (drop = [], relaxIds = [], k = 0) => S.criteria.map(c => drop.includes(c.id) ? { ...c, enabled: false } : relaxIds.includes(c.id) ? relaxCrit(c, k) : c);
 const flexKey = () => { const { applied, ...cfg } = flexCfg(); return JSON.stringify({ sig: simulationSignature(), cfg }); };
 const flexCurrent = () => !!S.flexResult && S.flexResult.key === flexKey();
 function flexLevers() {
   const F = flexCfg(), m = flexModel(); if (!m) return [];
   const unselected = m === 'emr' && S.selected.size ? S.scores.filter(s => s.emr && !S.selected.has(s.id)).map(s => s.id) : [];
   const crit = flexCriteria(), ids = (F.criteria.ids || []).filter(id => crit.some(c => c.id === id));
+  const relaxable = flexRelaxable(), rIds = ((F.relax || {}).ids || []).filter(id => relaxable.some(c => c.id === id));
   const room = m === 'fp' ? Math.max(0, S.fp.rows.filter(r => r.allow && !r.assumed && MC_KERNELS.effectiveCap(r) >= S.fpp.minSites).reduce((a, r) => a + MC_KERNELS.effectiveCap(r), 0) - S.fp.totalB) : null;
   const L = [
     { key: 'window', label: 'Enrollment window', unit: 'months longer', step: 1, avail: true },
@@ -8450,11 +8473,13 @@ function flexLevers() {
     { key: 'target', label: 'Target randomized', unit: '% smaller (needs statistical re-assessment)', step: 1, avail: true },
     { key: 'outside', label: 'Countries outside the sponsor list', bool: true, avail: m === 'fp' && !!S.fp.sponsorOnly, why: m === 'fp' ? 'available when “Plan within the sponsor’s countries only” is ticked' : 'country model only' },
     { key: 'criteria', label: 'Eligibility criteria that may be dropped', set: true, avail: m === 'emr' && crit.length > 0, why: m === 'fp' ? 'changes forecasts only with EMR patient data; the country model uses registry rates' : 'no non-essential computable criteria', ids },
+    { key: 'relax', label: 'Numeric thresholds that may be relaxed', unit: `steps (each loosens every ticked threshold by ${RELAX_PCT * 100}%; age by whole years, therapy lines by one line)`, step: 1, avail: m === 'emr' && relaxable.length > 0, why: m === 'fp' ? 'changes forecasts only with EMR patient data; the country model uses registry rates' : 'no non-essential numeric thresholds', ids: rIds },
   ];
   for (const l of L) {
     l.on = !!F[l.key]?.on && l.avail;
     if (!l.bool && !l.set) { const max = F[l.key].max; l.K = Math.max(0, Math.floor(max / l.step + 1e-9)); if (l.limit != null) l.K = Math.min(l.K, l.limit); }
     if (l.set && !ids.length) l.on = false;
+    if (l.key === 'relax' && !rIds.length) l.on = false;
   }
   return L;
 }
@@ -8479,9 +8504,9 @@ function flexPayload(sc, N) {
     const { alloc, total } = MC_KERNELS.optimizeAllocCore(F, rows, budget, base.fp.allocA);
     return { kind: 'fp', P, alloc, total, budget, payload: { params: P, fpp: F, sites: null, selected: [], fp: { rows, rowsBy, allocA: {}, totalA: 0, allocB: alloc, totalB: total, budgetB: budget } } };
   }
-  const ids = sc.criteria || [], ck = ids.join('|');
+  const ids = sc.criteria || [], rk = sc.relax || 0, rIds = rk ? (flexCfg().relax?.ids || []) : [], ck = ids.join('|') + '#' + rk;
   let C = S.cohort;
-  if (ids.length) { if (!FLEX_COHORTS.has(ck)) FLEX_COHORTS.set(ck, computeCohort(S.criteria.map(c => ids.includes(c.id) ? { ...c, enabled: false } : c))); C = FLEX_COHORTS.get(ck); }
+  if (ids.length || rk) { if (!FLEX_COHORTS.has(ck)) FLEX_COHORTS.set(ck, computeCohort(relaxedCriteria(ids, rIds, rk))); C = FLEX_COHORTS.get(ck); }
   const sites = base.sites.map(s => ({ ...s, eligible: C.bySite[s.id] ? C.bySite[s.id].eligible : s.eligible, pools: null }));
   const d = Math.round(sc.startup || 0); P.actMin = Math.max(0, P.actMin - d); P.actMax = Math.max(P.actMin, P.actMax - d);
   const extra = sc.budget ? S.scores.filter(s => s.emr && !S.selected.has(s.id)).slice(0, sc.budget).map(s => s.id) : [];
@@ -8561,10 +8586,14 @@ function flexChanges(lv, R) {
   if (lv.target) out.push(`Target −${lv.target}% (${R.baseTarget} → ${Math.max(1, Math.round(R.baseTarget * (1 - lv.target / 100)))} randomized)`);
   if (lv.outside) out.push('Countries outside the sponsor list allowed');
   if (lv.criteria?.length) out.push(`Drop ${lv.criteria.map(id => critLabel(S.criteria.find(c => c.id === id) || { kind: 'inc', type: 'manual' })).join('; ')}`);
+  if (lv.relax) for (const c of relaxTargets(lv)) out.push(`Relax ${critLabel(c)} → ${critLabel(relaxCrit(c, lv.relax)).replace(/^(INC|EXC) · /, '')}`);
   return out.length ? out : ['No change'];
 }
+// The thresholds a relax level applies to: the ticked ones, minus any the same option drops
+const relaxTargets = lv => (flexCfg().relax?.ids || []).filter(id => !(lv.criteria || []).includes(id)).map(id => S.criteria.find(c => c.id === id)).filter(Boolean);
 function flexWarnings(lv) {
   const w = [];
+  if (lv.relax) w.push('Relaxing thresholds is exploratory and needs medical and sponsor agreement (and may need a protocol amendment); safety-essential criteria are never offered.');
   if (lv.target) w.push('A smaller target changes the study’s statistical power: it needs the sponsor’s statistician.');
   if (lv.criteria?.length) w.push('Dropping criteria is exploratory and needs medical and sponsor agreement; safety-essential criteria are never offered.');
   if (lv.startup) w.push('Faster start-up is an operational assumption: it is not applied automatically. Confirm it with the countries, then edit start-up under Plan.');
@@ -8575,7 +8604,7 @@ function applyFlexOption(i, reason) {
   const R = S.flexResult; reason = String(reason || '').trim();
   if (!R || !flexCurrent()) return { error: 'The options are not current for the inputs. Search again.' };
   const o = R.options[i]; if (!o) return { error: 'That option no longer exists.' };
-  const lv = o.levels, applicable = ['window', 'budget', 'target', 'outside', 'criteria'].some(k => Array.isArray(lv[k]) ? lv[k].length : lv[k]);
+  const lv = o.levels, applicable = ['window', 'budget', 'target', 'outside', 'criteria', 'relax'].some(k => Array.isArray(lv[k]) ? lv[k].length : lv[k]);
   if (!applicable) return { error: 'Nothing in this option can be applied automatically (start-up acceleration is an operational assumption).' };
   if (reason.length < 3) return { error: 'A reason is required to apply a flexibility option.' };
   const P = S.params, newDeadline = o.result.deadline, newTarget = o.result.target;
@@ -8585,8 +8614,10 @@ function applyFlexOption(i, reason) {
   if (lv.target) { P.target = newTarget; if (S.setup?.override?.target != null) S.setup.override.target = newTarget; }
   if (lv.budget) { if (R.model === 'fp') { S.fpp.budgetMode = 'custom'; S.fpp.budget = R.budgetB + lv.budget; } else { for (const id of o.result.extra || []) S.selected.add(id); S.selectionManual = true; } }
   if (lv.outside) S.fpp.sponsorOnly = 0;
+  const changes = flexChanges(lv, R);  // described before the thresholds move
+  if (lv.relax) for (const c of relaxTargets(lv)) { const r = relaxCrit(c, lv.relax); for (const k of ['value', 'min', 'max', 'ulnMultiple']) if (r[k] !== c[k]) c[k] = r[k]; c.relaxedReason = `Flexibility option: ${reason}`; }
   for (const id of lv.criteria || []) { const c = S.criteria.find(x => x.id === id); if (c) { c.enabled = false; c.disabledReason = `Flexibility option: ${reason}`; } }
-  flexCfg().applied.push({ at: nowIso(), changes: flexChanges(lv, R), reason, confirmedProb: o.result.prob, runs: o.result.N, notApplied: lv.startup ? ['start-up acceleration'] : [] });
+  flexCfg().applied.push({ at: nowIso(), changes, reason, confirmedProb: o.result.prob, runs: o.result.N, notApplied: lv.startup ? ['start-up acceleration'] : [] });
   return { ok: true, job: recompute() };
 }
 
@@ -8599,11 +8630,13 @@ function flexPanel() {
     ${l.bool || l.set ? '' : `<span class="note">up to ${num(l)} ${esc(l.unit)}</span>`}${l.avail ? '' : `<span class="note">(${esc(l.why)})</span>`}</div>`;
   const crit = L.find(l => l.key === 'criteria');
   const critList = crit.avail ? `<div class="note" style="margin:2px 0 0 24px">${flexCriteria().map(c => `<label style="display:block"><input type="checkbox" data-flex-crit="${esc(c.id)}" ${F.criteria.ids.includes(c.id) ? 'checked' : ''} aria-label="May drop ${esc(critLabel(c))}"> ${esc(critLabel(c))}</label>`).join('')}</div>` : '';
+  const rx = L.find(l => l.key === 'relax');
+  const relaxList = rx.avail ? `<div class="note" style="margin:2px 0 0 24px">${flexRelaxable().map(c => `<label style="display:block"><input type="checkbox" data-flex-relax="${esc(c.id)}" ${(F.relax?.ids || []).includes(c.id) ? 'checked' : ''} aria-label="May relax ${esc(critLabel(c))}"> ${esc(critLabel(c))}</label>`).join('')}</div>` : '';
   const res = !R ? '' : !cur ? '<div class="note"><span class="chip">not current</span> The inputs or settings changed after the last search. Search again for current options.</div>' : flexResultHtml(R);
   return `<div class="ws-section" id="flexPanel"><span class="eyebrow">Where the plan can flex: find a feasible configuration (${m === 'fp' ? 'country footprint model' : 'EMR cohort model'})</span>
     <div class="note">Tick the parameters that have room to move and set how far each may go. The search changes only those, finds the smallest change that reaches the goal, and confirms each option with a full run on the same engine and random seed. Nothing changes your inputs unless you apply an option. Results are scenario estimates from an unvalidated model.${S.fp && S.cohort ? ' Both models are loaded: the search uses the country footprint model.' : ''}</div>
     <label class="field" style="max-width:340px">Goal: share of simulated runs reaching the target by the deadline<input type="number" data-flex="goal" value="${esc(F.goal)}" step="0.05" min="0.5" max="0.95" aria-label="Goal share of runs"></label>
-    <div class="card-list" style="gap:6px">${L.map(row).join('')}${critList}</div>
+    <div class="card-list" style="gap:6px">${L.filter(l => l.key !== 'relax').map(row).join('')}${critList}${row(rx)}${relaxList}</div>
     <div class="btn-row"><button class="btn btn-sm btn-accent" data-act="flexSearch" ${busy || !activeLevers().length ? 'disabled' : ''}>${busy ? 'Searching…' : 'Find feasible options'}</button></div>
     <div class="status-line ${S.flexMsg?.err ? 'err' : ''}" role="status" id="flexStatus">${esc(S.flexMsg?.text || '')}</div>
     ${res}
@@ -8619,7 +8652,7 @@ function flexResultHtml(R) {
       ${flexWarnings(o.levels).map(w => `<div class="note">⚠ ${esc(w)}</div>`).join('')}</div>
     <div class="r2-form"><input data-flex-reason="${i}" value="${esc(S.flexDraft?.[i] || '')}" placeholder="Reason (required)" aria-label="Reason for applying option ${i + 1}"><button class="btn btn-sm" data-act="flexApply" data-i="${i}">Apply to inputs</button></div></div>`).join('');
   const inf = R.infeasible ? `<div class="callout" style="background:var(--warn-container)"><b>Not reachable within the allowed ranges.</b> With every ticked parameter at its maximum (${esc(flexChanges(R.infeasible.levels, R).join('; '))}), ${line(R.infeasible.result)} of runs reach the target${R.model === 'fp' && R.infeasible.result.budget > R.infeasible.result.sites ? `; only ${fmt(R.infeasible.result.sites)} of ${fmt(R.infeasible.result.budget)} budgeted sites could be placed (capacity and share limits)` : ''}. Widen a range, tick another parameter or revisit the plan.</div>` : '';
-  return head + inf + (opts ? `<div class="card-list">${opts}</div>` : '') + '<div class="note">Single-parameter options change one thing; a combined option is the smallest mix found by shrinking target and criteria changes first, then countries, window, sites and start-up. The search assumes that more room never lowers the probability; with common random numbers this is usual but not guaranteed.</div>';
+  return head + inf + (opts ? `<div class="card-list">${opts}</div>` : '') + '<div class="note">Single-parameter options change one thing; a combined option is the smallest mix found by shrinking target, criteria and threshold changes first, then countries, window, sites and start-up. The search assumes that more room never lowers the probability; with common random numbers this is usual but not guaranteed.</div>';
 }
 const ws4R3 = ws4;
 ws4 = function () { const h = ws4R3(); return flexModel() ? h + flexPanel() : h; };
@@ -8648,13 +8681,14 @@ validateProjectState = function (st, P) {
       for (const k of ['window', 'budget', 'startup', 'target']) if (f[k] != null && (!isObj(f[k]) || typeof f[k].on !== 'boolean' || checkNum(String(f[k].max), FLEX_SCHEMA[k]).error)) e.push(`flex.${k} needs on (true/false) and a valid maximum`);
       if (f.outside != null && (!isObj(f.outside) || typeof f.outside.on !== 'boolean')) e.push('flex.outside needs on (true/false)');
       if (f.criteria != null && (!isObj(f.criteria) || typeof f.criteria.on !== 'boolean' || !Array.isArray(f.criteria.ids) || !f.criteria.ids.every(x => typeof x === 'string'))) e.push('flex.criteria needs on and a list of criterion IDs');
+      if (f.relax != null && (!isObj(f.relax) || typeof f.relax.on !== 'boolean' || checkNum(String(f.relax.max), FLEX_SCHEMA.relax).error || !Array.isArray(f.relax.ids) || !f.relax.ids.every(x => typeof x === 'string'))) e.push('flex.relax needs on, a valid maximum and a list of criterion IDs');
       if (f.applied != null && !(Array.isArray(f.applied) && f.applied.every(a => isObj(a) && validIso(a.at) && String(a.reason || '').trim().length >= 3))) e.push('flex.applied is malformed');
     }
   }
   return e;
 };
 const candidateFromProjectR3 = candidateFromProject;
-candidateFromProject = function (P, st) { const out = candidateFromProjectR3(P, st); if (st.flex) { const d = FLEX_DEFAULT(); out.c.flex = { ...d, ...st.flex, criteria: { ...d.criteria, ...(st.flex.criteria || {}) }, applied: st.flex.applied || [] }; } return out; };
+candidateFromProject = function (P, st) { const out = candidateFromProjectR3(P, st); if (st.flex) { const d = FLEX_DEFAULT(); out.c.flex = { ...d, ...st.flex, criteria: { ...d.criteria, ...(st.flex.criteria || {}) }, relax: { ...d.relax, ...(st.flex.relax || {}) }, applied: st.flex.applied || [] }; } return out; };
 
 // ---------- Actions and events ----------
 Object.assign(ACTIONS, {
@@ -8674,14 +8708,15 @@ Object.assign(ACTIONS, {
 });
 document.addEventListener('input', e => { const t = e.target; if (t.dataset?.flexReason != null) (S.flexDraft = S.flexDraft || {})[t.dataset.flexReason] = t.value; });
 document.addEventListener('change', e => {
-  const t = e.target, k = t.dataset?.flex, c = t.dataset?.flexCrit; if (k == null && c == null) return;
+  const t = e.target, k = t.dataset?.flex, c = t.dataset?.flexCrit, rx = t.dataset?.flexRelax; if (k == null && c == null && rx == null) return;
   const F = flexCfg();
-  if (c != null) F.criteria.ids = t.checked ? [...new Set([...F.criteria.ids, c])] : F.criteria.ids.filter(x => x !== c);
+  if (rx != null) { F.relax = F.relax || FLEX_DEFAULT().relax; F.relax.ids = t.checked ? [...new Set([...F.relax.ids, rx])] : F.relax.ids.filter(x => x !== rx); }
+  else if (c != null) F.criteria.ids = t.checked ? [...new Set([...F.criteria.ids, c])] : F.criteria.ids.filter(x => x !== c);
   else { const [a, b] = k.split('.');
     if (b === 'on') F[a].on = t.checked;
     else { const r = checkNum(t.value, FLEX_SCHEMA[a]); if (r.error) { S.flexMsg = { text: `Not applied: ${r.error}.`, err: true }; renderAll(); return; } if (a === 'goal') F.goal = r.value; else F[a].max = r.value; } }
   S.flexMsg = null;
-  const sel = c != null ? `[data-flex-crit="${CSS.escape(c)}"]` : `[data-flex="${CSS.escape(k)}"]`;
+  const sel = rx != null ? `[data-flex-relax="${CSS.escape(rx)}"]` : c != null ? `[data-flex-crit="${CSS.escape(c)}"]` : `[data-flex="${CSS.escape(k)}"]`;
   setTimeout(() => { renderAll(); focusAfterRender(sel); }, 0);
 });
 
@@ -8766,6 +8801,40 @@ const FLEX_TESTS = [
   S.flexResult={key:flexKey(),model:'emr',goal:0.8,L:[{key:'criteria',set:true,step:1}],options:[{levels:{criteria:[c.id]},result:{prob:0.85,deadline:S.params.deadline,target:S.params.target,N:2000}}],baseDeadline:S.params.deadline,baseTarget:S.params.target};
   const a=applyFlexOption(0,'Medical monitor agrees to test without it');if(a.job)await a.job;
   return [offeredOk && ess.every(x=>!offered.includes(x)) && relaxed>=base && a.ok && c.enabled===false && /^Flexibility option: /.test(c.disabledReason) && !staleStages().length && flexLevers().find(l=>l.key==='criteria').avail,JSON.stringify({base,relaxed,offered:offered.length})];
+ }],
+ ['Thresholds','Relaxing loosens each threshold in the direction that admits more patients; age moves by whole years, therapy lines by one, ULN limits by their multiple',async()=>{
+  const L=(kind,op,value,type='lab',x={})=>({id:'t',kind,type,field:'hba1c',op,value,enabled:true,...x});
+  const r=[relaxCrit(L('inc','<=',10),2).value,relaxCrit(L('inc','>=',7),2).value,relaxCrit(L('exc','>=',10),1).value,relaxCrit(L('exc','<=',60),1).value,
+    relaxCrit(L('inc','between',null,'lab',{min:7,max:10}),1),relaxCrit(L('exc','between',null,'lab',{min:7,max:10}),1),relaxCrit(L('inc','<=',75,'age',{field:'age'}),1).value,
+    relaxCrit(L('inc','>=',2,'lines',{field:'lines'}),1).value,relaxCrit(L('inc','between',null,'age',{field:'age',min:18,max:75}),2),relaxCrit(L('inc','<=',null,'lab',{field:'alt',ulnMultiple:2.5}),2).ulnMultiple,relaxCrit(L('inc','<=',10),0).value,relaxCrit(L('exc','between',null,'lab',{min:7,max:7.2}),5)];
+  const ok=r[0]===11 && r[1]===6.3 && r[2]===10.5 && r[3]===57 && r[4].min===6.65 && r[4].max===10.5 && r[5].min===7.35 && r[5].max===9.5 && r[6]===79 && r[7]===1 && r[8].min===18 && r[8].max===83 && r[9]===2.75 && r[10]===10 && r[11].min<=r[11].max;
+  return [ok,JSON.stringify(r)];
+ }],
+ ['Thresholds','EMR model: only non-essential numeric thresholds are offered; relaxing never shrinks the pool; applying sets the new thresholds, records the reason and can be restored',async()=>{
+  await r3EmrReady();const offered=flexRelaxable();const okOffer=offered.length>0 && offered.every(c=>!c.essential && c.enabled && relaxNumeric(c));
+  flexCfg().relax.ids=offered.map(c=>c.id);const pools=[0,1,2,4].map(k=>flexPayload(k?{relax:k}:{},400).eligible);
+  const mono=pools.every((v,i)=>!i || v>=pools[i-1]);const c=offered[0],before={value:c.value,min:c.min,max:c.max,ulnMultiple:c.ulnMultiple};
+  S.flexResult={key:flexKey(),model:'emr',goal:0.8,L:[{key:'relax',step:1}],options:[{levels:{relax:2},result:{prob:0.85,deadline:S.params.deadline,target:S.params.target,N:2000}}],baseDeadline:S.params.deadline,baseTarget:S.params.target};
+  const want=relaxCrit({...c},2);const a=applyFlexOption(0,'Medical monitor agrees to test a wider range');if(a.job)await a.job;
+  const set=['value','min','max','ulnMultiple'].every(k=>c[k]===want[k]) && /^Flexibility option: /.test(c.relaxedReason) && criteriaModified() && /Relax /.test(flexCfg().applied.at(-1).changes.join(' '));
+  ACTIONS.restoreCrit();const back=S.criteria.find(x=>x.id===c.id);const restored=['value','min','max','ulnMultiple'].every(k=>back[k]===before[k]);
+  return [okOffer && mono && pools.at(-1)>pools[0] && a.ok && set && restored,JSON.stringify({offered:offered.length,pools,set,restored})];
+ }],
+ ['Thresholds','EMR model: the search finds the smallest relaxation step that reaches the goal, and one step fewer does not',async()=>{
+  await r3EmrReady();const offered=flexRelaxable();flexCfg().relax.ids=offered.map(c=>c.id);
+  // a target the current thresholds miss but three relaxation steps reach in about 9 of 10 runs
+  const t3=(await flexRun({relax:3},2000,flexKey())).p10;S.params.target=Math.max(5,t3);await recompute();await waitFor(()=>simulationResultsCurrent());
+  Object.assign(flexCfg().relax,{on:true,max:6});const r=await runFlexSearch();if(r.error)return [false,r.error];const o=r.result.options.find(x=>x.levels.relax);
+  if(!o)return [false,JSON.stringify({t3,infeasible:r.result.infeasible?.result?.prob,base:r.result.base?.prob})];
+  const k=o.levels.relax,g=flexCfg().goal;
+  const atK=(await flexRun({relax:k},400,flexKey())).prob,below=k>1?(await flexRun({relax:k-1},400,flexKey())).prob:(await flexRun({},400,flexKey())).prob;
+  return [atK>=g && below<g && flexChanges(o.levels,r.result).some(x=>/^Relax /.test(x)) && flexWarnings(o.levels).some(w=>/protocol amendment/.test(w)),JSON.stringify({k,atK,below})];
+ }],
+ ['Thresholds','Relaxation settings are saved with the project and checked on load',async()=>{
+  await r3EmrReady();const id=flexRelaxable()[0].id;Object.assign(flexCfg().relax,{on:true,max:3,ids:[id]});const text=await pjSave();
+  S=freshState();UX_IO.confirm=()=>true;const L=await loadProjectText(text);
+  const bad=validateProjectState({flex:{relax:{on:true,max:99,ids:[id]}}},{}).some(e=>/flex.relax/.test(e));
+  return [L.ok && S.flex.relax.on===true && S.flex.relax.max===3 && S.flex.relax.ids[0]===id && bad,JSON.stringify(S.flex.relax)];
  }],
  ['Flexibility','EMR model: the window search runs on the EMR simulation and finds options there too',async()=>{
   await r3EmrReady();S.params.target=Math.max(10,Math.round((S.portfolioSim||S.sim).p50[S.params.deadline]*1.3));await recompute();await waitFor(()=>simulationResultsCurrent());

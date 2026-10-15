@@ -330,7 +330,7 @@ body[data-view="expert"] .simple-only { display: none !important; }
 
   <header class="pipeline-header">
     <div class="pipeline-title-row">
-      <h1>Clinical Trial Feasibility · v0.9.10</h1>
+      <h1>Clinical Trial Feasibility · v0.9.11</h1>
       <div class="header-actions">
         <details class="menu" id="projectMenu"><summary class="btn btn-sm" title="Save, load or reset the analysis">Project</summary>
           <div class="menu-pop" role="group" aria-label="Project">
@@ -4871,12 +4871,12 @@ function ws3() {
   ${indicationConflicts().map(({ c, hits }) => `<div class="callout warn" style="border:1px solid var(--warning,#b7791f);border-radius:8px;padding:10px 12px;margin:8px 0"><b>${esc(critLabel(c))}</b> would also exclude every patient with the study diagnosis (${esc(hits.map(k => CONDITIONS[k]?.label || k).join(', '))}). Protocols usually mean a subtype, complication or “<i>other</i>” condition here (for example “other malignancy”); check the source text: “${esc(c.text)}”.<div class="btn-row" style="margin-top:6px"><button class="btn btn-sm btn-accent" data-act="exemptIndication" data-id="${c.id}">Exempt the study indication</button><button class="btn btn-sm btn-ghost" data-act="keepIndicationConflict" data-id="${c.id}">Keep as written</button></div></div>`).join('')}
   ${ruleContradictions().map(({ inc, exc }) => `<div class="callout warn" style="border:1px solid var(--warning,#b7791f);border-radius:8px;padding:10px 12px;margin:8px 0"><b>${esc(conceptLabel(inc.type, inc.field) || inc.field)}</b> is both required (${esc(critLabel(inc))}) and excluded (${esc(critLabel(exc))}), so no patient can qualify. One of them is probably a misread: check “${esc(inc.text)}” and “${esc(exc.text)}”, then switch off the wrong rule with a reason.<div class="btn-row" style="margin-top:6px"><button class="btn btn-sm btn-ghost" data-act="keepContradiction" data-id="${exc.id}">Both are intended</button></div></div>`).join('')}
   <div class="ws-section"><span class="eyebrow">Computable criteria — toggle or edit thresholds; downstream stages update instantly</span>
-    <div class="tbl-wrap"><table class="tbl"><thead><tr><th>On</th><th>Kind</th><th>Concept</th><th>Logic</th><th>Thresholds</th><th title="How well the text was understood">Parse</th><th class="expert-only" title="Whether the rule can be checked against the data">Execution</th><th title="Safety-essential criteria are never suggested for relaxation">Essential</th><th>Flags</th><th>Source text</th></tr></thead><tbody>
+    <div class="tbl-wrap"><table class="tbl"><thead><tr><th>On</th><th>Kind</th><th>Concept</th><th class="expert-only">Logic</th><th>Thresholds</th><th title="How well the text was understood">Parse</th><th class="expert-only" title="Whether the rule can be checked against the data">Execution</th><th title="Safety-essential criteria are never suggested for relaxation">Essential</th><th>Flags</th><th>Source text</th></tr></thead><tbody>
     ${S.criteria.map(c => `<tr class="${c.enabled ? '' : 'off'}">
       <td><input type="checkbox" data-crit="${c.id}" data-k="enabled" ${c.enabled ? 'checked' : ''} ${c.essential && c.enabled ? 'disabled title="Safety-essential: untick Essential first"' : ''} aria-label="Enable criterion">${!c.enabled ? `<br><input class="mono" style="width:150px;margin-top:4px" data-crit="${c.id}" data-k="disabledReason" value="${esc(c.disabledReason || '')}" placeholder="reason (required)" aria-label="Reason for disabling">` : ''}</td>
       <td><span class="chip ${c.kind}">${c.kind === 'inc' ? 'INC' : 'EXC'}</span></td>
       <td>${esc(critConcept(c))}</td>
-      <td class="mono" style="font-size:11.5px">${esc(critLogic(c))}${c.temporal ? ` <span class="muted">WITHIN WINDOW “${esc(c.temporal)}”</span>` : ""}${c.exceptText ? ` <span class="muted">EXCEPT “${esc(String(c.exceptText).slice(0, 80))}”</span>` : ""}${c.conditional ? ` <span class="muted">ONLY IF “${esc(c.conditional)}”</span>` : ""}${c.region ? ` <span class="muted">(${esc(c.region)} only)</span>` : ""}</td>
+      <td class="mono expert-only" style="font-size:11.5px">${esc(critLogic(c))}${c.temporal ? ` <span class="muted">WITHIN WINDOW “${esc(c.temporal)}”</span>` : ""}${c.exceptText ? ` <span class="muted">EXCEPT “${esc(String(c.exceptText).slice(0, 80))}”</span>` : ""}${c.conditional ? ` <span class="muted">ONLY IF “${esc(c.conditional)}”</span>` : ""}${c.region ? ` <span class="muted">(${esc(c.region)} only)</span>` : ""}</td>
       <td style="white-space:nowrap">${(['lab', 'age', 'lines'].includes(c.type) || (c.type === 'biomarker' && c.op !== 'eq')) && (c.value != null || c.op === 'between') ? (c.op === 'between'
         ? `<input type="number" step="any" data-crit="${c.id}" data-k="min" value="${c.min}" aria-label="min"> – <input type="number" step="any" data-crit="${c.id}" data-k="max" value="${c.max}" aria-label="max">`
         : `<span class="mono">${esc(c.op)}</span> <input type="number" step="any" data-crit="${c.id}" data-k="value" value="${c.value}" aria-label="value">`) : '<span class="muted">—</span>'}</td>
@@ -4943,10 +4943,13 @@ function ws4Cohort() {
       ${pfield('sims', 'Monte Carlo runs', 100, 500)}${pfield('seed', 'Random seed', 1, 1)}
     </div></div>
   <div class="stat-grid">
-    ${stat('EMR records', fmt(C.total))}${stat('Meets all executed criteria', `${fmt(C.meets)} <span class="muted" style="font-size:13px">${pct(C.meets / C.total, 1)}</span>`, 'hl')}${stat('Unresolved (missing data / unsupported logic)', fmt(C.unresolved))}${stat('Fails ≥ 1 criterion', fmt(C.fails))}
-    ${stat('Criteria executed', `${C.exec.full} full · ${C.exec.partial} partial · ${C.exec.manual} manual`)}
     ${stat('Projected pool', fmt(sim.poolTotal))}${stat(`P(${fmt(P.target)} by m${P.deadline})`, pct(sim.prob), sim.prob >= .8 ? 'good' : sim.prob < .5 ? 'bad' : '')}
     ${stat('Median months to target', isFinite(sim.medMonths) ? sim.medMonths : `>${sim.H}`)}${stat('P90 months', isFinite(sim.p90Months) ? sim.p90Months : `>${sim.H}`)}
+  </div>
+<!--§pool-->
+  <div class="stat-grid">
+    ${stat('EMR records', fmt(C.total))}${stat('Meets all executed criteria', `${fmt(C.meets)} <span class="muted" style="font-size:13px">${pct(C.meets / C.total, 1)}</span>`, 'hl')}${stat('Unresolved (missing data / unsupported logic)', fmt(C.unresolved))}${stat('Fails ≥ 1 criterion', fmt(C.fails))}
+    ${stat('Criteria executed', `${C.exec.full} full · ${C.exec.partial} partial · ${C.exec.manual} manual`)}
   </div>
   <div class="callout">${fmt(C.meets)} + ${fmt(C.unresolved)} + ${fmt(C.fails)} = ${fmt(C.meets + C.unresolved + C.fails)} of ${fmt(C.total)} records. “Meets” means no executed criterion failed and none was unresolved; it is <b>not</b> confirmed eligibility: ${fmt(C.manual.length)} manual requirement(s) and ${fmt(C.notEvaluable.length)} non-executable criteria still need site confirmation.${S.cohortBaseline ? `<br><b>Protocol baseline</b> (as written): ${fmt(S.cohortBaseline.meets)} meet · ${fmt(S.cohortBaseline.unresolved)} unresolved · ${fmt(S.cohortBaseline.fails)} fail. Current figures reflect ${S.criteria.filter(c => !c.enabled).length} disabled and/or edited criteria (exploratory).` : ''}</div>
   <div class="field-grid">
@@ -4956,11 +4959,13 @@ function ws4Cohort() {
   ${eligScenarioPanel(C)}
   <div class="ws-section"><span class="eyebrow">Unknown results by criterion (all records, including those that fail elsewhere)</span>
     ${(() => { const rs = []; C.perCrit.forEach(pc => pc.reasons.forEach((n, why) => rs.push([why, n, pc.crit]))); rs.sort((a, b) => b[1] - a[1]); return rs.length ? rs.slice(0, 8).map(([why, n, c]) => barRow(`${critLabel(c)}: ${why}`, n, C.total)).join('') : '<div class="note">No unresolved results.</div>'; })()}
-    <div class="note">Assumptions: ${C.assumptions.map(esc).join(' ')}</div></div>
+    <details class="note-fold"><summary>Assumptions behind these counts</summary><div class="note">Assumptions: ${C.assumptions.map(esc).join(' ')}</div></details></div>
+<!--§chart-->
   <div class="ws-section"><span class="eyebrow">Enrollment forecast — all ${sim.nSites} EMR-connected sites · ${fmt(sim.N)} runs · pool basis: ${esc(ELIG_BASIS[C.basis].label)} · eligible range ${fmt(C.range.lower)} / ${fmt(C.range.likely)} / ${fmt(C.range.upper)} (lower / central assumed / upper)</span>
     <div class="legend"><span><i style="background:var(--primary);opacity:.35;height:8px"></i>P10–P90</span><span><i style="background:var(--primary);opacity:.6;height:8px"></i>P25–P75</span><span><i style="background:var(--primary)"></i>Median</span><span><i style="background:var(--positive)"></i>Target</span><span><i style="background:var(--error)"></i>Deadline</span></div>
     <div class="chart-wrap" id="chartWrap">${fanChart(sim)}<div class="tip" id="chartTip"></div></div></div>
-  ${sensitivityPanel('emr')}${definitionsPanel()}
+<!--§sens-->
+  ${sensitivityPanel('emr')}<!--§defs-->${definitionsPanel()}<!--§funnel-->
   <div class="two-col">
     <div class="ws-section"><span class="eyebrow">Attrition waterfall</span>
       ${barRow('All de-identified records', C.total, maxW)}
@@ -5318,7 +5323,7 @@ function summarizeSim(s) { return { sites: s.nSites, runs: s.N, probabilityOfTar
 
 
 /* Audited extension: v0.3.0, research prototype. Offline inputs stay local. */
-const APP_VERSION = '0.9.10';
+const APP_VERSION = '0.9.11';
 const REPORT_SCHEMA = 'tfp-analysis/2';
 const FEEDBACK_COLS = ['site_id','site_name','country','interest','eligible_patients','enrollment_per_month','startup_months','competing_trials','response_date','challenges','source',
   'reporter','eligible_period_months','screened_per_month','randomized_per_month','enrollment_unit','screening_confirmation','competing_overlap','referral_pathways','investigators','coordinators','capabilities'];
@@ -6036,9 +6041,13 @@ function updateWorkerPanel(){
   const progress=$('#workerProgress');if(progress){progress.max=Math.max(1,MC.progress.total);progress.value=MC.progress.completed;}
 }
 function workerPanel(){
+  // v0.9.11: a finished forecast needs no panel (the Plan tab shows "forecast current"; Recalculate sits in the action bar).
+  // Running, cancelled or failed forecasts show one compact line with the same controls.
   if(!simulationNeeded() && MC.status==='idle')return '';
   const active=!!MC.current;
-  return `<div class="ws-section" aria-live="polite"><span class="eyebrow">Background Monte Carlo · ${esc(MC.status)}</span><div id="workerProgressText">${esc(MC.progress.phase)}</div><progress id="workerProgress" max="${Math.max(1,MC.progress.total)}" value="${MC.progress.completed}" style="width:100%;margin:8px 0"></progress><div class="btn-row">${active?'<button class="btn btn-sm" data-act="cancelMonteCarlo">Cancel computation</button>':'<button class="btn btn-sm" data-act="rerunMonteCarlo">Recalculate current inputs</button>'}</div><p class="note">Simulation-only worker: aggregate site/country values, no raw patient records, protocol text or credentials. Progress is per computational phase. Cancelled or stale results cannot be exported.</p></div>`;
+  if(!active && MC.status==='complete')return '';
+  const why='Simulation-only worker: aggregate site/country values, no raw patient records, protocol text or credentials. Progress is per computational phase. Cancelled or stale results cannot be exported.';
+  return `<div class="worker-line" aria-live="polite" title="${esc(why)}"><span class="chip ${MC.status==='error'?'high':active?'':'med'}">Forecast · ${esc(MC.status)}</span><span id="workerProgressText" class="note">${esc(MC.progress.phase)}</span>${active?`<progress id="workerProgress" max="${Math.max(1,MC.progress.total)}" value="${MC.progress.completed}"></progress>`:''}${active?'<button class="btn btn-sm" data-act="cancelMonteCarlo">Cancel computation</button>':'<button class="btn btn-sm" data-act="rerunMonteCarlo">Recalculate current inputs</button>'}</div>`;
 }
 const engineTestsReference=runEngineTests;
 runEngineTests=async function(){
@@ -9333,7 +9342,8 @@ function taskActionsHtml() {
     : p?.act === 'reviewStudy' ? 'Check the study details, the extracted criteria and the optional data before running.'
     : p?.act === 'setupRun' ? `Run parses the protocol, queries ClinicalTrials.gov${researchReady() ? ', researches countries after you approve the request' : ''} and runs the forecast in the background. The Report opens when it succeeds, unless you have moved to another tab in the meantime.`
     : staleStages().length ? 'Inputs changed since the last analysis: forecasts are withheld until it is updated.' : 'No current forecast is available: update the analysis to recalculate.');
-  return `<div class="msg ${err ? 'err' : ''}" role="status">${demo}${esc(text)}</div><div class="btn-row">${p ? `<button class="btn btn-accent" id="primaryAction" data-act="${p.act}"${p.task ? ` data-task="${p.task}"` : ''} ${block.length ? 'disabled' : ''}>${p.label}</button>` : ''}</div>`;
+  const recalc = simulationNeeded() && MC.status === 'complete' ? '<button class="btn btn-sm btn-ghost" data-act="rerunMonteCarlo" title="Run the forecast again for the current inputs (same seed and settings)">Recalculate</button>' : '';
+  return `<div class="msg ${err ? 'err' : ''}" role="status">${demo}${esc(text)}</div><div class="btn-row">${recalc}${p ? `<button class="btn btn-accent" id="primaryAction" data-act="${p.act}"${p.task ? ` data-task="${p.task}"` : ''} ${block.length ? 'disabled' : ''}>${p.label}</button>` : ''}</div>`;
 }
 function renderTaskActions() { const el = $('#taskActions'); if (el) el.innerHTML = taskActionsHtml(); }
 function renderTasks() {
@@ -9399,8 +9409,34 @@ function studyReviewHtml() {
 }
 
 /* Plan and Report reuse the step 4-6 panels; their sections stay expandable and are never Expert-only */
-const planHtml = () => `<details class="task-sec" data-sec="planForecast" ${secOpen('planForecast', true)}><summary>Forecast, assumptions and what-ifs</summary><div class="task-sec-body">${ws4()}</div></details>
-  <details class="task-sec" data-sec="planReview" ${secOpen('planReview', true)}><summary>Country and site review, allocation and comparisons</summary><div class="task-sec-body">${ws5()}</div></details>`;
+// v0.9.11: the Plan tab in four sections with a sub-navigation (one shown at a time, or all). Every control is unchanged;
+// hidden sections stay in the page. The choice is presentation only and is not saved with the project.
+let planSub = 'forecast';
+function cohortParts() {
+  const h = (S.cohort && S.sim) ? ws4Cohort() : '';
+  if (!h.includes('<!--§pool-->')) return { forecast: h, pool: '' };
+  const cut = k => { const i = h.indexOf(`<!--§${k}-->`); return i; };
+  const seg = (a, b) => h.slice(cut(a), b ? cut(b) : h.length);
+  const head = h.slice(0, cut('pool'));
+  return { forecast: head + seg('chart', 'sens') + seg('sens', 'defs'), pool: seg('pool', 'chart') + seg('funnel') + seg('defs', 'funnel') };
+}
+function planSections() {
+  const fp = wsFootprint(), co = cohortParts(), out = [];
+  const simC = S.sim ? (S.portfolioSim || S.sim) : null, simF = S.fp ? (S.fp.simA || S.fp.simB) : null, sim = simF || simC;
+  const fc = fp + (fp && co.forecast ? '<hr style="border:0;border-top:1px solid var(--stroke-default);margin:4px 0">' : '') + co.forecast;
+  out.push({ k: 'forecast', label: 'Forecast', sum: sim ? `${pct(sim.prob)} reach ${fmt(S.params.target)} by month ${fmt(S.params.deadline)}` : 'not calculated',
+    html: fc || `<div class="empty">Needs either registry data from Evidence (country footprint simulation, any indication) or patient data plus parsed criteria from Study (EMR cohort simulation).</div>` });
+  if (co.pool) out.push({ k: 'pool', label: 'Patient pool', sum: S.cohort ? `${fmt(S.cohort.range[S.cohort.basis] ?? S.cohort.meets)} eligible records (${esc(S.cohort.basis === 'likely' ? 'central' : S.cohort.basis)})` : '', html: co.pool });
+  if (flexModel()) out.push({ k: 'whatifs', label: 'What-ifs', sum: flexCurrent() ? `${S.flexResult.options.length} option${S.flexResult.options.length === 1 ? '' : 's'} found` : 'find a feasible configuration', html: flexPanel() });
+  out.push({ k: 'sites', label: S.fp ? 'Countries & sites' : 'Sites', sum: S.scores ? `${fmt(S.selected.size || S.scores.length)} of ${fmt(S.scores.length)} sites selected` : S.fp ? `${fmt(Object.keys(S.fp.allocB).length)} countries · ${fmt(S.fp.totalB)} sites` : '', html: ws5() });
+  return out;
+}
+const planHtml = () => {
+  const secs = planSections(), cur = planSub === 'all' || secs.some(x => x.k === planSub) ? planSub : 'forecast';
+  const nav = `<div class="plan-subnav" role="tablist" aria-label="Plan sections">${secs.map(x => `<button class="plan-subtab" role="tab" aria-selected="${cur === x.k}" data-act="planSub" data-sub="${x.k}"><b>${esc(x.label)}</b>${x.sum ? `<span>${x.sum}</span>` : ''}</button>`).join('')}<button class="plan-subtab all" role="tab" aria-selected="${cur === 'all'}" data-act="planSub" data-sub="all"><b>Show all</b></button></div>`;
+  return nav + secs.map(x => `<section class="plan-sec" data-plansec="${x.k}" aria-label="${esc(x.label)}"${cur === 'all' || cur === x.k ? '' : ' hidden'}>${cur === 'all' ? `<h3 class="plan-sec-h">${esc(x.label)}</h3>` : ''}${x.html}</section>`).join('');
+};
+ACTIONS.planSub = a => { planSub = a.dataset.sub; renderDetail(); focusAfterRender(`[data-act="planSub"][data-sub="${planSub}"]`); };
 function reportContextHtml() {
   if (!S.risks) return '';
   const gaps = S.risks.filter(f => f.sev !== 'ok' && ['Evidence', 'Evidence gap', 'Data coverage', 'Data quality', 'Eligibility assumption', 'Country', 'Protocol parsing'].includes(f.cat));
@@ -9464,9 +9500,21 @@ document.addEventListener('keydown', e => {
   const n = e.key === 'Home' ? 0 : e.key === 'End' ? keys.length - 1 : (i + (e.key === 'ArrowRight' ? 1 : keys.length - 1)) % keys.length;
   ACTIONS.task({ dataset: { task: keys[n] } });
 });
-// The Study details card belongs to the Study tab
+// The Study details card belongs to the Study tab; the other tabs show a one-line summary with a link back (v0.9.11).
+// (Before, the card's own display rule overrode the hidden attribute, so the full form repeated on every tab.)
+function studySummaryHtml() {
+  const fpl = parseFootprint(S.brief.sponsorFootprint), n = +S.brief.plannedSites, fpSites = fpl.reduce((a, x) => a + (x.sites || 0), 0);
+  const parts = [`${fmt(S.params.target)} randomized within ${fmt(S.params.deadline)} months`,
+    fpl.length ? `${fpl.length} proposed ${fpl.length === 1 ? 'country' : 'countries'}${fpSites ? ` · ${fmt(fpSites)} sites` : ''}` : n > 0 ? `${fmt(n)} planned sites` : 'no proposed countries'];
+  return `<div class="study-summary"><span class="eyebrow">Study</span><b id="startTitle">${esc(S.brief.condition || S.meta?.title || 'New study')}</b><span class="muted">${parts.map(esc).join(' · ')}</span><button class="btn btn-sm btn-ghost" data-act="task" data-task="study">Edit study details</button></div>`;
+}
 const renderStartTasks = renderStart;
-renderStart = function () { const host = $('#startHere'); if (host) host.hidden = taskOf(S.step) !== 'study'; renderStartTasks(); };
+renderStart = function () {
+  const host = $('#startHere'), study = taskOf(S.step) === 'study';
+  if (host) { host.hidden = false; host.classList.toggle('compact', !study); }
+  renderStartTasks();
+  if (host && !study) host.innerHTML = studySummaryHtml();
+};
 // A fresh page opens on the protocol-focused Study state (step 3), not on the optional patient import (step 1)
 if (S.step === 0) S.step = TASKS.study.step;
 const LOAD_STEP = S.step;
@@ -10561,6 +10609,28 @@ details.claude[open]{background:#17181c;border-color:rgba(255,255,255,.12)}
 .pipeline-header{overflow:visible;z-index:20}
 .pipeline-header::before{inset:0;border-radius:inherit;clip-path:inset(0 round 16px);animation:none;transform:none}
 .menu-pop{z-index:40}
+
+/* v0.9.11 organisation: compact study summary, compact forecast status, Plan sub-navigation, folded notes */
+.start-card.compact{padding:10px 16px}
+.study-summary{display:flex;flex-wrap:wrap;align-items:center;gap:4px 12px}
+.study-summary b{font-size:15px;color:var(--on-surface)}
+.study-summary .btn{margin-left:auto}
+.worker-line{display:flex;flex-wrap:wrap;align-items:center;gap:8px 12px;padding:8px 0 14px}
+.worker-line progress{flex:1;min-width:140px}
+.demo-banner{padding:7px 12px;font-size:12.5px;flex-wrap:nowrap}
+.demo-banner>span{flex:1 1 auto;min-width:0}
+.demo-banner>.btn{flex:0 0 auto}
+@media (max-width:640px){.demo-banner{flex-wrap:wrap}}
+.plan-subnav{display:flex;flex-wrap:wrap;gap:6px;margin:0 0 16px;padding:4px;border:1px solid var(--stroke-default);border-radius:12px}
+.plan-subtab{flex:1 1 150px;display:flex;flex-direction:column;align-items:flex-start;gap:2px;text-align:left;padding:8px 12px;border-radius:9px;border:1px solid transparent;background:transparent;color:var(--on-surface-variant);cursor:pointer;font:inherit}
+.plan-subtab b{color:var(--on-surface);font-size:13.5px}
+.plan-subtab span{font-size:11.5px}
+.plan-subtab.all{flex:0 0 auto;justify-content:center}
+.plan-subtab[aria-selected="true"]{background:var(--surface-bright,rgba(255,255,255,.05));border-color:var(--primary)}
+.plan-subtab:focus-visible{outline:2px solid var(--primary);outline-offset:2px}
+.plan-sec-h{margin:18px 0 8px;font-size:16px}
+details.note-fold{margin-top:6px}
+details.note-fold>summary{cursor:pointer;font-size:12.5px;color:var(--on-surface-variant)}
 </style>
 </body>
 </html>

@@ -330,7 +330,7 @@ body[data-view="expert"] .simple-only { display: none !important; }
 
   <header class="pipeline-header">
     <div class="pipeline-title-row">
-      <h1>Clinical Trial Feasibility · v0.9.8</h1>
+      <h1>Clinical Trial Feasibility · v0.9.9</h1>
       <div class="header-actions">
         <details class="menu" id="projectMenu"><summary class="btn btn-sm" title="Save, load or reset the analysis">Project</summary>
           <div class="menu-pop" role="group" aria-label="Project">
@@ -473,7 +473,7 @@ body[data-view="expert"] .simple-only { display: none !important; }
 <input type="file" id="fileFeedback" accept=".csv,text/csv" hidden><input type="file" id="fileMarket" accept=".csv,text/csv" hidden><input type="file" id="fileRules" accept=".json,application/json" hidden><input type="file" id="fileBench" accept=".csv,.tsv,.txt,text/csv,text/tab-separated-values,text/plain" hidden>
 
 <!-- Numerical engine: generated from src/mc-kernels.js and src/mc-worker.js by `node tools/build.mjs`. Do not edit between these tags. -->
-<script id="mc-kernels" data-sha256="5cdd82b1d502f8595212c6b1933ac90b18a2a161ad7c97fbed07f83f1ea3451a">
+<script id="mc-kernels" data-sha256="fb96c0db51247dcf6afb1bbc9f60c211421b666e92b24704935f00a26208d266">
 /* mc-kernels — Monte Carlo recruitment kernels for the Trial Feasibility Pipeline (single source of truth).
  * Edit this file, then run `node tools/build.mjs` to embed it in feasibility-pipeline.html.
  * Pure functions: no DOM, no application state, no network, no dynamic code compilation.
@@ -587,6 +587,9 @@ function simulateFootprintCore(P,F,alloc,rowsBy,nOverride,progress = () => {}) {
   for (const [c, n] of Object.entries(alloc)) { const row = rowsBy[c]; if (!row || !(n > 0)) continue; for (let i = 0; i < n; i++) sites.push({ c, rate: row.rate, startup: row.startup }); }
   const totals = Array.from({ length: H + 1 }, () => new Float64Array(N)); const reach = new Float64Array(N).fill(Infinity); const byC = {};
   const act = new Float64Array(sites.length), lam = new Float64Array(sites.length); const s2 = F.sigma * F.sigma / 2;
+  // Activation spread grows with the footprint (v0.9.9): large plans open sites over many months, not within a fixed
+  // stagger. staggerSites k → stagger = max(stagger, min(18, k·√sites)); 0 keeps the fixed stagger (and every result).
+  const stag = F.staggerSites > 0 ? Math.max(F.stagger, Math.min(18, F.staggerSites * Math.sqrt(sites.length))) : F.stagger;
   // Trial-level rate uncertainty (v0.9.1): one log-normal multiplier per run shared by every site, so the spread between
   // whole trials is not averaged away across hundreds of sites. Drawn from its own stream: with sigmaTrialEff 0 the
   // site-level random sequence and every result are unchanged.
@@ -595,8 +598,11 @@ function simulateFootprintCore(P,F,alloc,rowsBy,nOverride,progress = () => {}) {
     if (n % Math.max(1,Math.ceil(N/100)) === 0) progress(n,N,"simulation");
     // Median-preserving (v0.9.3): the comparator rate it scales is a median of trials, so the multiplier keeps that median.
     // (A mean-preserving form, exp(σz − σ²/2), shifted the median forecast ~30% slower at σ 0.8 in the back-tests.)
-    const trialF = sT ? Math.exp(sT * randn(rT)) : 1;
-    for (let j = 0; j < sites.length; j++) { act[j] = sites[j].startup + r() * F.stagger; lam[j] = sites[j].rate * trialF * Math.exp(F.sigma * randn(r) - s2); }
+    // Slow-trial downside (v0.9.9): a share of whole trials recruits at a fraction of the comparator rate (protocol, competition
+    // or operational failure the registry cannot see). Calibrated on round-4 back-tests; with slowShare 0 nothing is drawn.
+    const slow = F.slowShare > 0 && sT && rT() < F.slowShare ? F.slowFactor : 1;
+    const trialF = sT ? slow * Math.exp(sT * randn(rT)) : 1;
+    for (let j = 0; j < sites.length; j++) { act[j] = sites[j].startup + r() * stag; lam[j] = sites[j].rate * trialF * Math.exp(F.sigma * randn(r) - s2); }
     let cum = 0;
     for (let m = 1; m <= H; m++) {
       for (let j = 0; j < sites.length; j++) {
@@ -1150,7 +1156,9 @@ const NEG_RE = /\b(no|not|denies|denied|without|negative for|ruled out|r\/o|abse
  * ===================================================================== */
 const MODEL_DEFINITIONS_VERSION = 'defs/1';
 // Validation status for every report: the 57-trial back-test is exploratory and also calibrated the model, so it is not independent validation
-const VALIDATION_STATUS = 'Not independently validated: a retrospective back-test on 57 completed trials, also used to calibrate the model, found the actual result inside the 80% range in 84% of trials and a median timing error of 33% (v0.9.4 defaults); this is exploratory, not prospective or held-out predictive validation';
+const VALIDATION_STATUS = 'Retrospectively back-tested, not prospectively validated: on 99 held-out trials not used for tuning (a validation set and a fresh one-time lockbox, round 4, 2026-10-15) about 3 in 4 actual enrollments fell inside the “8 in 10 runs” range (≈75%, below its nominal 80%) and the median miss was about 60%; earlier back-tests on 57 completed trials were used to calibrate the model and are not independent';
+// v0.9.9: the low end of every range includes the slow-trial runs; reports state that downside separately
+const stallRiskNote = (F = S.fpp) => F.slowShare > 0 ? `Stall risk: ${pct(F.slowShare)} of runs assume the trial recruits at about ${pct(F.slowFactor)} of the comparator pace, as trials later stopped for poor enrolment did in back-tests; these runs set the low end of each range` : '';
 const MODEL_DEFINITIONS = [
   { factor: 'Target / endpoint', unit: 'participants randomized', meaning: 'Both simulations count participants randomized (first dose for single-arm studies). Screening, retention and completion are not modelled; if the sponsor counts completers, inflate the target for expected dropout yourself.' },
   { factor: 'Eligible pool (EMR)', unit: 'patients in the EMR extract', meaning: 'Records counted on the chosen basis: lower (default) = every machine-evaluated requirement met; central assumed scenario = lower plus records that remain unresolved only on specified screening confirmations (dose stability, washout, exposure duration), included by assumption; upper = plus every unresolved record. None of these is confirmed clinical eligibility.' },
@@ -1194,7 +1202,7 @@ const DEFAULT_PARAMS = { target: 300, deadline: 18, consent: 0.6, catchment: 8, 
 const DEFAULT_WEIGHTS = { density: 30, velocity: 25, quality: 20, capacity: 15, experience: 10 };
 const DEFAULT_BRIEF = { condition: '', comparator: '', investigational: '', mechanism: '', phases: { 1: false, 2: true, 3: true, 4: false }, since: new Date().getFullYear() - 12, asOf: '', industryOnly: true, sponsorFootprint: '', researchCountries: '', autoTopN: 10, maxSearches: 6, plannedSites: null };
 // v0.9.1 (retrospective test of 5 completed trials): maxShare 0.35 → 0.20; new enrollShareLong, sizeMatch, minEvidence, maxRegionShare, sigmaTrial (empty = from data)
-const DEFAULT_FPP = { budgetMode: 'match', budget: 75, maxShare: 0.2, minSites: 3, capShare: 0.6, enrollShare: 0.7, enrollShareLong: 0.5, stagger: 3, sigma: 0.4, sigmaTrial: null, satK: 0.25, socBroad: 0.8, socRestricted: 1.0, socLimited: 1.2, defaultStartup: 6, rateScale: 1, shrinkK: 3, sizeMatch: 1, ppsMatch: 1, minEvidence: 3, maxRegionShare: 1, speedScenario: 'typical', benchmarkRate: null, keepMin: 0, onlyResearched: 1, sponsorOnly: 0 };
+const DEFAULT_FPP = { budgetMode: 'match', budget: 75, maxShare: 0.2, minSites: 3, capShare: 0.6, enrollShare: 0.7, enrollShareLong: 0.5, stagger: 3, sigma: 0.8, sigmaTrial: null, satK: 0.25, socBroad: 0.8, socRestricted: 1.0, socLimited: 1.2, defaultStartup: 6, rateScale: 1, shrinkK: 3, sizeMatch: 1, ppsMatch: 1, minEvidence: 3, maxRegionShare: 1, speedScenario: 'typical', benchmarkRate: null, keepMin: 0, onlyResearched: 1, sponsorOnly: 0, ppsElasticity: 0, slowShare: 0.1, slowFactor: 0.3, sigmaK: 0.9, sigmaLo: 0.5, sigmaHi: 1.2, thinN: 10, staggerSites: 1 };
 let S;
 function freshState() {
   return {
@@ -3666,11 +3674,11 @@ function computeFootprint(deferSimulation = false) {
   const SR = sizeMatchedRates(W, F, P), gRate = SR.global;
   // v0.9.3: the registry cannot tell a fast programme from a slow one. A user benchmark (patients/site/month) re-centres every
   // country while keeping their relative differences; the speed scenario is an explicit, labelled assumption.
-  const benchF = F.benchmarkRate > 0 && gRate > 0 ? F.benchmarkRate / gRate : 1, speedF = SPEED_SCENARIOS[F.speedScenario]?.factor ?? 1;
+  const benchF = F.benchmarkRate > 0 && gRate > 0 ? F.benchmarkRate / gRate : 1, speedF = SPEED_SCENARIOS[F.speedScenario]?.factor ?? 1, ppsF = benchF === 1 ? SR.ppsFactor ?? 1 : 1;
   const rows = Object.values(W.countries).map(c => {
     const intel = cacheFresh(S.intel[intelKey(c.name)]) ? S.intel[intelKey(c.name)] : null; const ov = S.fpOv[c.name] || {};
     const nR = c.rates.length, cr = SR.country(c), nW = cr.weight;
-    const baseRate = (nW > 0 ? (nW * cr.rate + F.shrinkK * gRate) / (nW + F.shrinkK) : gRate) * F.rateScale * benchF * speedF;
+    const baseRate = (nW > 0 ? (nW * cr.rate + F.shrinkK * gRate) / (nW + F.shrinkK) : gRate) * F.rateScale * benchF * speedF * ppsF;
     const satF = (1 + F.satK * g.medConc) / (1 + F.satK * c.conc);
     const acc = intel?.comparator_access;
     const socF = !S.brief.comparator ? 1 : acc === 'broad' ? F.socBroad : acc === 'restricted' ? F.socRestricted : acc === 'limited' ? F.socLimited : 1;
@@ -3717,6 +3725,10 @@ function computeFootprint(deferSimulation = false) {
   const budgetB = (F.budgetMode !== 'custom' && totalA > 0) ? totalA : F.budget;
   const { alloc: allocB, total: totalB, diag } = optimizeAlloc(rows, budgetB, allocA);
   if (shortWindow) diag.notes.push(`The ${fmt(P.deadline)}-month enrollment window is not longer than country start-up (${fmt(F.defaultStartup)} months by default, plus activation stagger), so no site can recruit inside it and countries are ranked by recruitment rate only. The window counts from study start: enter recruitment months plus start-up`);
+  // v0.9.9 (round-4 back-tests): with few usable comparator trials the forecast error roughly doubled (median miss ≈100% vs ≈55%);
+  // forcing the σ cap below 10 (not 30) kept 80% coverage with ranges ~2.4× narrower
+  if (SR.thin) diag.notes.push(`Thin evidence: only ${fmt((g.items || []).length)} usable completed comparator trials (fewer than ${F.thinN}). The range uses the widest trial-level uncertainty; in back-tests forecasts on thin evidence missed by about twice as much. Treat the forecast as indicative and check it against a benchmark or site survey.`);
+  if (!totalA && !totalB) diag.notes.push('No forecast: no planned or recommendable site has a registry-based rate. Enter the footprint’s countries with assumed rates under Plan, or broaden the condition terms. A blank result is not a forecast of zero participants.');
   if (evidenceFallback) diag.notes.push(`No country has ${F.minEvidence} or more usable completed comparator trials, so the recommendation uses every country and rests on thin evidence; consider broader condition terms`);
   // Would the recommendation change without the heuristic country multipliers?
   const noMod = rows.map(r => { const ov = S.fpOv[r.country] || {}; const rate = ov.rate ?? (r.assumed ? r.rate : r.baseRate); return { ...r, rate, value: shortWindow ? rate * 0.5 : rate * Math.max(0, P.deadline - r.startup - F.stagger / 2) }; });
@@ -3740,7 +3752,7 @@ function computeFootprint(deferSimulation = false) {
       .sort((a, b) => (b.hist.length - 0.75 * b.comp.length) - (a.hist.length - 0.75 * a.comp.length) || b.hist.length - a.hist.length).slice(0, Math.min(5, r.b));
     shortlist.push(...facs.map(f => ({ ...f, rate: f.rates.length ? median(f.rates) : null })));
   }
-  S.fp = { globalRate: gRate, sizeMatched: SR.used, matchMode: SR.mode, match: SR.match, sigmaSdLog: SR.sdLog, sigmaTrialAuto: SR.sigmaTrial, rows, rowsBy, requested, totalRequested, allocA, totalA, unsupportedA, allocB, totalB, budgetB, diag, dupNotes, simA, simB, shortlist, modifierCheck, missingA: Object.keys(unsupportedA), sponsorOnly: restrict, sponsorOnlyWithoutList: !!F.sponsorOnly && !spSet.size, ms: performance.now() - t0 };
+  S.fp = { globalRate: gRate, sizeMatched: SR.used, matchMode: SR.mode, match: SR.match, sigmaSdLog: SR.sdLog, sigmaTrialAuto: SR.sigmaTrial, ppsFactor: SR.ppsFactor ?? 1, ppsRef: SR.ppsRef ?? null, thinEvidence: !!SR.thin, rows, rowsBy, requested, totalRequested, allocA, totalA, unsupportedA, allocB, totalB, budgetB, diag, dupNotes, simA, simB, shortlist, modifierCheck, missingA: Object.keys(unsupportedA), sponsorOnly: restrict, sponsorOnlyWithoutList: !!F.sponsorOnly && !spSet.size, ms: performance.now() - t0 };
   if (!S.cohort) { S.timings[3] = S.fp.ms; S.timings[4] = S.fp.ms; }
 }
 // v0.9.3 recruitment-speed scenarios. In 48 back-tested trials, trials that recruited within 12 months ran ~2× the
@@ -3799,10 +3811,22 @@ function sizeMatchedRates(W, F, P, plan = plannedSites()) {
   // Spread of whole trials around the comparator median: k × the weighted SD of log rates, kept within [lo, hi].
   // Too few comparator trials to measure the spread means more uncertainty, not less: use the upper bound.
   // Data without per-trial sizes (fixtures, projects saved before v0.9.1) keep the earlier behaviour (no trial-level term).
-  const rule = SIGMA_RULE[ppsUsed ? 'pps' : 'size'];
+  const rule = { ...SIGMA_RULE[ppsUsed ? 'pps' : 'size'], ...(F.sigmaK > 0 ? { k: F.sigmaK } : {}), ...(F.sigmaLo > 0 ? { lo: F.sigmaLo } : {}), ...(F.sigmaHi > 0 ? { hi: F.sigmaHi } : {}) };
   let sigmaTrial = g.items && gItems.length < 5 ? rule.hi : 0, sdLog = null;
+  // v0.9.9: patients-per-site elasticity. Comparators are matched on patients per site, but in the round-4 back-tests the
+  // residual error still rose with the planned load (more patients per site → faster per site). The comparators' weighted
+  // median load is the reference; the factor is kept within [1/3, 3].
+  let ppsFactor = 1, ppsRef = null;
+  if (F.ppsElasticity > 0 && P.target > 0 && plan?.source && plan.sites > 0 && gItems.length >= 3 && gItems.every(x => x.pps > 0)) {
+    const s = gItems.map(x => ({ p: x.pps, w: wOf(x) })).sort((a, b) => a.p - b.p), tot = s.reduce((a, x) => a + x.w, 0);
+    if (tot > 0) { let acc = 0; for (const x of s) { acc += x.w; if (acc >= tot / 2) { ppsRef = x.p; break; } } }
+    if (ppsRef > 0) ppsFactor = clamp((P.target / plan.sites / ppsRef) ** F.ppsElasticity, 1 / 3, 3);
+  }
   if (gItems.length >= 5) { const ws = gItems.map(x => ({ l: Math.log(x.rate), w: wOf(x) })).filter(x => isFinite(x.l)); const W_ = ws.reduce((a, x) => a + x.w, 0); const m = ws.reduce((a, x) => a + x.w * x.l, 0) / W_; sdLog = Math.sqrt(ws.reduce((a, x) => a + x.w * (x.l - m) ** 2, 0) / W_); sigmaTrial = clamp(rule.k * sdLog, rule.lo, rule.hi); }
-  return { global, used: on && gItems.length > 0, mode: ppsUsed ? 'pps' : on ? 'size' : 'none', match, sdLog, sigmaTrial: +sigmaTrial.toFixed(3), country: c => { const items = c.items && c.items.length === c.rates.length ? c.items : c.rates.map(rate => ({ rate, n: null })); if (!items.length) return { rate: null, weight: 0 }; const w = items.reduce((a, x) => a + wOf(x), 0); return { rate: on ? wmed(items) : median(c.rates), weight: on ? w : c.rates.length }; } };
+  // v0.9.9: a spread measured on few comparators is itself unreliable; below thinN usable trials use the upper bound
+  const thin = F.thinN > 0 && g.items && gItems.length < F.thinN;
+  if (thin) sigmaTrial = Math.max(sigmaTrial, rule.hi);
+  return { global, used: on && gItems.length > 0, mode: ppsUsed ? 'pps' : on ? 'size' : 'none', match, sdLog, sigmaTrial: +sigmaTrial.toFixed(3), ppsFactor, ppsRef, thin, country: c => { const items = c.items && c.items.length === c.rates.length ? c.items : c.rates.map(rate => ({ rate, n: null })); if (!items.length) return { rate: null, weight: 0 }; const w = items.reduce((a, x) => a + wOf(x), 0); return { rate: on ? wmed(items) : median(c.rates), weight: on ? w : c.rates.length }; } };
 }
 // Production entry points: the shared static kernels applied to the current state
 function optimizeAlloc(rows, budget, sponsorAlloc = {}) { return MC_KERNELS.optimizeAllocCore(S.fpp, rows, budget, sponsorAlloc); }
@@ -4027,7 +4051,7 @@ function buildBidSummary() {
   if (W.global.dq) L.push(`- Rate data: ${W.global.dq.usedForRates} of ${W.global.dq.completed} completed trials used; excluded ${W.global.dq.estimatedExcluded} with estimated enrollment, ${W.global.dq.missingDates} with missing dates, ${W.global.dq.badDates || 0} with primary completion on or before start,${W.global.dq.noEnrollment} without enrollment, ${W.global.dq.fewSites} with fewer than 3 sites.`);
   L.push('- Only comparator access and start-up from country research change the forecast; prevalence, incidence and standard-of-care findings are context only.');
   if (S.cohort) L.push(`- EMR eligible pool: lower ${fmt(S.cohort.range.lower)} · central assumed ${fmt(S.cohort.range.likely)} · upper ${fmt(S.cohort.range.upper)} of ${fmt(S.cohort.total)} records. EMR forecast basis: **${ELIG_BASIS[S.cohort.basis].label}**. ${S.cohort.scenario.assumption}`);
-  L.push('', '## Limitations', '', `- Probabilities are scenario estimates, not validated predictions. ${VALIDATION_STATUS}.`,'- Registry data lists sites, not site-level enrollment; rates are trial-level averages.', '- Country research is automated desk research with citations; verify key figures before external use.', '- Saturation counts recruiting trials by site status where registries report it.');
+  L.push('', '## Limitations', '', `- Probabilities are scenario estimates, not validated predictions. ${VALIDATION_STATUS}.`, ...(stallRiskNote() ? [`- ${stallRiskNote()}.`] : []),'- Registry data lists sites, not site-level enrollment; rates are trial-level averages.', '- Country research is automated desk research with citations; verify key figures before external use.', '- Saturation counts recruiting trials by site status where registries report it.');
   return L.join('\n');
 }
 
@@ -4241,7 +4265,7 @@ function wsCountries() {
  * 10h. Input validation, allocation integrity and stale-result tracking
  * ===================================================================== */
 const PARAM_SCHEMA = { target: { int: true, min: 1, max: 100000, label: 'Target' }, deadline: { int: true, min: 1, max: 120, label: 'Enrollment window' }, consent: { min: 0.01, max: 1, label: 'Consent rate' }, catchment: { min: 0.01, max: 1000, label: 'Catchment multiplier' }, actMin: { int: true, min: 0, max: 36, label: 'Activation min' }, actMax: { int: true, min: 0, max: 36, label: 'Activation max' }, sims: { int: true, min: 100, max: 20000, label: 'Monte Carlo runs' }, seed: { int: true, min: 0, max: 2147483647, label: 'Random seed' } };
-const FPP_SCHEMA = { budget: { int: true, min: 1, max: 5000, label: 'Site budget' }, maxShare: { min: 0.01, max: 1, label: 'Max share per country' }, minSites: { int: true, min: 1, max: 500, label: 'Min sites per country' }, capShare: { min: 0.01, max: 1, label: 'Usable share of experienced sites' }, enrollShare: { min: 0.05, max: 1, label: 'Enrollment share' }, enrollShareLong: { min: 0.05, max: 1, label: 'Enrollment share, long follow-up trials' }, sigmaTrial: { min: 0, max: 2, label: 'Trial-level rate uncertainty' }, benchmarkRate: { min: 0.001, max: 50, label: 'Benchmark rate' }, sizeMatch: { int: true, min: 0, max: 1, label: 'Weight comparators by size' }, ppsMatch: { int: true, min: 0, max: 1, label: 'Match comparators on planned patients per site' }, minEvidence: { int: true, min: 0, max: 50, label: 'Minimum comparator trials to recommend a country' }, maxRegionShare: { min: 0.05, max: 1, label: 'Max share per world region' }, stagger: { min: 0, max: 24, label: 'Activation stagger' }, sigma: { min: 0, max: 2, label: 'Rate uncertainty' }, satK: { min: 0, max: 5, label: 'Saturation sensitivity' }, socBroad: { min: 0.05, max: 5, label: 'Comparator-broad factor' }, socRestricted: { min: 0.05, max: 5, label: 'Comparator-restricted factor' }, socLimited: { min: 0.05, max: 5, label: 'Comparator-limited factor' }, defaultStartup: { min: 0, max: 48, label: 'Default start-up' }, rateScale: { min: 0.01, max: 20, label: 'Rate calibration' }, shrinkK: { min: 0, max: 50, label: 'Shrinkage' }, keepMin: { int: true, min: 0, max: 500, label: 'Keep ≥ N sites' }, onlyResearched: { int: true, min: 0, max: 1, label: 'Only researched' }, sponsorOnly: { int: true, min: 0, max: 1, label: 'Sponsor countries only' } };
+const FPP_SCHEMA = { budget: { int: true, min: 1, max: 5000, label: 'Site budget' }, maxShare: { min: 0.01, max: 1, label: 'Max share per country' }, minSites: { int: true, min: 1, max: 500, label: 'Min sites per country' }, capShare: { min: 0.01, max: 1, label: 'Usable share of experienced sites' }, enrollShare: { min: 0.05, max: 1, label: 'Enrollment share' }, enrollShareLong: { min: 0.05, max: 1, label: 'Enrollment share, long follow-up trials' }, sigmaTrial: { min: 0, max: 2, label: 'Trial-level rate uncertainty' }, benchmarkRate: { min: 0.001, max: 50, label: 'Benchmark rate' }, sizeMatch: { int: true, min: 0, max: 1, label: 'Weight comparators by size' }, ppsMatch: { int: true, min: 0, max: 1, label: 'Match comparators on planned patients per site' }, minEvidence: { int: true, min: 0, max: 50, label: 'Minimum comparator trials to recommend a country' }, maxRegionShare: { min: 0.05, max: 1, label: 'Max share per world region' }, stagger: { min: 0, max: 24, label: 'Activation stagger' }, sigma: { min: 0, max: 2, label: 'Rate uncertainty' }, satK: { min: 0, max: 5, label: 'Saturation sensitivity' }, socBroad: { min: 0.05, max: 5, label: 'Comparator-broad factor' }, socRestricted: { min: 0.05, max: 5, label: 'Comparator-restricted factor' }, socLimited: { min: 0.05, max: 5, label: 'Comparator-limited factor' }, defaultStartup: { min: 0, max: 48, label: 'Default start-up' }, rateScale: { min: 0.01, max: 20, label: 'Rate calibration' }, shrinkK: { min: 0, max: 50, label: 'Shrinkage' }, keepMin: { int: true, min: 0, max: 500, label: 'Keep ≥ N sites' }, onlyResearched: { int: true, min: 0, max: 1, label: 'Only researched' }, sponsorOnly: { int: true, min: 0, max: 1, label: 'Sponsor countries only' }, ppsElasticity: { min: 0, max: 1.5, label: 'Patients-per-site elasticity' }, slowShare: { min: 0, max: 0.5, label: 'Share of slow trials' }, slowFactor: { min: 0.05, max: 1, label: 'Slow-trial rate factor' }, sigmaK: { min: 0, max: 3, label: 'Trial σ multiplier (0 = rule)' }, sigmaLo: { min: 0, max: 3, label: 'Trial σ floor (0 = rule)' }, sigmaHi: { min: 0, max: 3, label: 'Trial σ cap (0 = rule)' }, thinN: { int: true, min: 0, max: 200, label: 'Thin-evidence threshold' }, staggerSites: { min: 0, max: 5, label: 'Activation spread per √site' } };
 const OV_SCHEMA = { rate: { min: 0, max: 50, label: 'Per-site monthly rate' }, startup: { min: 0, max: 48, label: 'Start-up months' }, cap: { int: true, min: 0, max: 5000, label: 'Country cap' }, assumedRate: { min: 0, max: 50, label: 'Assumed rate' }, assumedStartup: { min: 0, max: 48, label: 'Assumed start-up' } };
 const BRIEF_NUM = { since: { int: true, min: 1990, max: new Date().getFullYear(), label: 'Completed trials since' }, autoTopN: { int: true, min: 0, max: 60, label: 'Auto-research top N' }, maxSearches: { int: true, min: 1, max: 20, label: 'Max web searches' }, plannedSites: { int: true, min: 1, max: 5000, label: 'Planned number of sites' } };
 function checkNum(raw, spec) {
@@ -5294,7 +5318,7 @@ function summarizeSim(s) { return { sites: s.nSites, runs: s.N, probabilityOfTar
 
 
 /* Audited extension: v0.3.0, research prototype. Offline inputs stay local. */
-const APP_VERSION = '0.9.8';
+const APP_VERSION = '0.9.9';
 const REPORT_SCHEMA = 'tfp-analysis/2';
 const FEEDBACK_COLS = ['site_id','site_name','country','interest','eligible_patients','enrollment_per_month','startup_months','competing_trials','response_date','challenges','source',
   'reporter','eligible_period_months','screened_per_month','randomized_per_month','enrollment_unit','screening_confirmation','competing_overlap','referral_pathways','investigators','coordinators','capabilities'];
@@ -5885,7 +5909,7 @@ ENGINE_TESTS.push(
   const rows=[row('A',0.6,4,30,8),row('B',0.3,6,12,3.5),row('C',0.9,8,4,9),row('D',0.5,5,20,6,{allow:false}),row('E',0.4,3,15,5,{capOverride:{value:25,applied:true}})];
   const rowsBy=Object.fromEntries(rows.map(r=>[r.country,r]));const out=[];
   for(const seed of [1,7,42,1234,987654321]){
-   S.params={...DEFAULT_PARAMS,seed,sims:300,target:120};S.fpp={...DEFAULT_FPP,keepMin:2};
+   S.params={...DEFAULT_PARAMS,seed,sims:300,target:120};S.fpp={...DEFAULT_FPP,keepMin:2,staggerSites:0};
    const opt=optimizeAlloc(rows,40,{A:10,B:5}),refOpt=referenceOptimizeAlloc(rows,40,{A:10,B:5});out.push(JSON.stringify(opt)===JSON.stringify(refOpt));
    for(const alloc of [{A:10,B:5},opt.alloc,{}])out.push(JSON.stringify(simulateFootprint(alloc,rowsBy))===JSON.stringify(referenceSimulateFootprint(alloc,rowsBy)));
   }
@@ -5893,7 +5917,7 @@ ENGINE_TESTS.push(
   return [out.every(Boolean) && out.length===20 && empty.nSites===0 && empty.p90.every(v=>v===0),`${out.filter(Boolean).length}/20 identical`];
  }],
  ['v0.5.1 · C7 Expected values','Independent analytic checks: Poisson footprint mean = sites × rate × months; a saturated site enrolls its whole expected pool',async()=>{
-  S.params={...DEFAULT_PARAMS,seed:42,sims:4000,target:1e6,deadline:18};S.fpp={...DEFAULT_FPP,sigma:0,stagger:0};
+  S.params={...DEFAULT_PARAMS,seed:42,sims:4000,target:1e6,deadline:18};S.fpp={...DEFAULT_FPP,sigma:0,stagger:0,staggerSites:0};
   const fp=simulateFootprint({X:5},{X:{country:'X',rate:2,startup:0}});const want=5*2*18,got=fp.byCountry.X;
   S.params={...DEFAULT_PARAMS,seed:42,sims:4000,actMin:1,actMax:1,catchment:1,consent:0.5,target:1e6};
   S.sites=[{id:'s',emr:true,eligible:80,simRate:500,simSF:0.25,rateKnown:true}];const sim=simulate(null);const pool=80*1*0.5*(1-0.25),exp=sim.sites[0].expected;
@@ -6412,7 +6436,7 @@ function rangesHtml() {
     ${G.map(g => `<span class="eyebrow">${esc(g.title)}</span><div class="range-grid">${g.cols.map(c => `<div class="range-col ${c.basis ? 'basis' : ''}"><h4>${esc(c.name)}${c.basis ? ' <span class="chip info">forecast basis</span>' : ''}</h4>
       ${c.records != null ? `<div class="line">${fmt(c.records)} eligible records</div>` : ''}${g.rows.map(([k, label]) => cell(rangeSim(g, c, k), g.rows.length > 1 ? label : '')).join('')}<div class="what">${esc(c.what)}</div></div>`).join('')}</div>
       <div class="note"><b>What separates them:</b> ${esc(g.separates)}</div>`).join('')}
-    <div class="note">Percentages are shares of simulated runs from an unvalidated model under these assumptions: scenario estimates, not validated recruitment predictions. “8 in 10 runs” is the P10–P90 spread of simulated outcomes, not a confidence interval.</div></div>`;
+    <div class="note">Percentages are shares of simulated runs from an unvalidated model under these assumptions: scenario estimates, not validated recruitment predictions. “8 in 10 runs” is the P10–P90 spread of simulated outcomes, not a confidence interval; in held-out back-tests about 3 in 4 real trials (not 8 in 10) fell inside it, so read it as a likely range.${stallRiskNote() ? ` ${esc(stallRiskNote())}.` : ''}</div></div>`;
 }
 // When nothing meets every machine-checkable requirement, say why the conservative forecast is zero and what the other pools depend on
 function zeroLowerNote() {
@@ -6985,6 +7009,7 @@ function buildCountryRecommendation() {
     `- Start-up from country research, else ${S.fpp.defaultStartup} months; activation stagger ${S.fpp.stagger} months; log-normal rate uncertainty σ ${S.fpp.sigma}; Poisson recruitment; ${fmt(P.sims)} runs; seed ${P.seed}.`,
     `- ${verdictRule()}`,
     `- Probabilities are shares of simulated runs; they are scenario estimates, not predictions. ${VALIDATION_STATUS}.`,
+    ...(stallRiskNote() ? [`- ${stallRiskNote()}.`] : []),
     '- Registry data lists sites, not site-level enrollment; rates are trial-level averages. Country research is automated desk research with listed links that this application does not verify.',
     '- Country decisions and evidence reviews are local reviewer records; reviewer labels are not authenticated.');
   return L.filter(x => x !== null).join('\n');
@@ -7061,7 +7086,7 @@ const r2Import = recs => { importIntel(JSON.stringify(recs)); return recs.map(r 
 const daysAgo = d => new Date(Date.now() - d * 864e5).toISOString();
 const R2_SRC = [{ title: 'Fixture source', url: 'https://example.org/fixture', supports: 'startup_months' }];
 const R2_TESTS = [
- ['Validation wording','Every report and the run manifest describe the 57-trial back-test as exploratory calibration, not independent validation, and none says there was no retrospective validation',async()=>{await r2Ready();const docs={bid:buildBidSummary(),rec:buildCountryRecommendation(),site:buildSitePack(S.fp.shortlist[0].id),manifest:runManifest().limitations.join('\n')};const bad=Object.entries(docs).filter(([,t])=>/no retrospective validation/i.test(t) || !t.includes(VALIDATION_STATUS)).map(([k])=>k);return [bad.length===0 && /57 completed trials/.test(VALIDATION_STATUS) && /not prospective or held-out/.test(VALIDATION_STATUS),JSON.stringify({bad})];}],
+ ['Validation wording','Every report and the run manifest describe the 57-trial back-test as exploratory calibration, not independent validation, and none says there was no retrospective validation',async()=>{await r2Ready();const docs={bid:buildBidSummary(),rec:buildCountryRecommendation(),site:buildSitePack(S.fp.shortlist[0].id),manifest:runManifest().limitations.join('\n')};const bad=Object.entries(docs).filter(([,t])=>/no retrospective validation/i.test(t) || !t.includes(VALIDATION_STATUS)).map(([k])=>k);return [bad.length===0 && /57 completed trials/.test(VALIDATION_STATUS) && /not prospectively validated/.test(VALIDATION_STATUS) && /99 held-out trials/.test(VALIDATION_STATUS),JSON.stringify({bad})];}],
  ['Decisions','Committing a decision without a reason is refused and records nothing',async()=>{const r=commitCountryDecision('Aland','Recommended','  ');return [!!r.error && /reason is required/.test(r.error) && !Object.keys(S.countryReview).length && !S.countryReviewLog.length,r.error];}],
  ['Decisions','A committed decision stores decision, reason and timestamp; changing it needs a new reason',async()=>{const a=commitCountryDecision('Aland','Recommended','Strong site network');const b=commitCountryDecision('Aland','Watchlist','');const mid=S.countryReview.Aland.decision;const c=commitCountryDecision('Aland','Watchlist','Saturation rising');const v=S.countryReview.Aland;return [a.ok && !!b.error && mid==='Recommended' && c.ok && v.decision==='Watchlist' && v.reason==='Saturation rising' && !!Date.parse(v.at) && v.changes===1 && S.countryReviewLog.length===2 && S.countryReviewLog[1].from==='Recommended',JSON.stringify(v)];}],
  ['Decisions','Unknown decision values and no-op changes are refused',async()=>{const a=commitCountryDecision('Aland','Maybe','because');commitCountryDecision('Aland','Excluded','Regulatory delay');const b=commitCountryDecision('Aland','Excluded','Regulatory delay');return [!!a.error && !!b.error && S.countryReviewLog.length===1,JSON.stringify([a,b])];}],
@@ -8661,8 +8686,11 @@ document.addEventListener('change', e => {
 });
 
 /* ---------- Flexibility and sponsor-country regression tests (real Web Worker; offline fixtures) ---------- */
+// The flexibility tests check search mechanics on a fixture sized for the pre-v0.9.9 uncertainty (with the round-4 calibration
+// the fixture's goal is out of reach within the allowed ranges); they pin those settings explicitly.
+const FLEX_FIXTURE_UNCERTAINTY = { sigma: 0.4, sigmaK: 0.8, sigmaLo: 0.3, sigmaHi: 0.9, slowShare: 0, thinN: 0, staggerSites: 0 };
 async function flexFail() { // a target the current plan misses, so the search has something to find
-  await r2Ready(); const s = S.fp.simB; S.params.target = Math.max(10, Math.round(s.p50[s.deadline] * 1.25)); await recompute(); await waitFor(() => simulationResultsCurrent());
+  await r2Ready(); Object.assign(S.fpp, FLEX_FIXTURE_UNCERTAINTY); await recompute(); await waitFor(() => simulationResultsCurrent()); const s = S.fp.simB; S.params.target = Math.max(10, Math.round(s.p50[s.deadline] * 1.25)); await recompute(); await waitFor(() => simulationResultsCurrent());
 }
 const flexKernelProb = (sc, N) => { const b = flexPayload(sc, N); return MC_KERNELS.simulateFootprintCore(b.P, b.payload.fpp, b.payload.fp.allocB, b.payload.fp.rowsBy, N).prob; };
 const FLEX_TESTS = [
@@ -8709,13 +8737,13 @@ const FLEX_TESTS = [
   const r=await runFlexSearch();const R=r.result;return [r.ok && !R.options.length && !!R.infeasible && R.infeasible.result.prob<flexCfg().goal && R.infeasible.levels.window===2 && (R.infeasible.levels.budget==null || R.infeasible.levels.budget===flexLevers().find(l=>l.key==='budget').K) && /Not reachable within the allowed ranges/.test(flexPanel()),JSON.stringify(R?.infeasible?.result?.prob)];
  }],
  ['Flexibility','Applying an option needs a reason, changes only what it lists, and reproduces its confirmed probability',async()=>{
-  await r2Ready();S.params.sims=2000;const s=S.fp.simB;S.params.target=Math.max(10,Math.round(s.p50[s.deadline]*1.25));await recompute();await waitFor(()=>simulationResultsCurrent());
+  await r2Ready();Object.assign(S.fpp,FLEX_FIXTURE_UNCERTAINTY);S.params.sims=2000;await recompute();await waitFor(()=>simulationResultsCurrent());const s=S.fp.simB;S.params.target=Math.max(10,Math.round(s.p50[s.deadline]*1.25));await recompute();await waitFor(()=>simulationResultsCurrent());
   Object.assign(flexCfg().window,{on:true,max:18});const r=await runFlexSearch();const i=r.result.options.findIndex(o=>o.levels.window);const o=r.result.options[i];
   const keep=JSON.stringify({t:S.params.target,b:S.fpp.budget,m:S.fpp.budgetMode,ov:S.fpOv});const no=applyFlexOption(i,'');const a=applyFlexOption(i,'Sponsor accepts a longer window');await a.job;await waitFor(()=>simulationResultsCurrent());
   return [!!no.error && a.ok && S.params.deadline===o.result.deadline && keep===JSON.stringify({t:S.params.target,b:S.fpp.budget,m:S.fpp.budgetMode,ov:S.fpOv}) && S.fp.simB.prob===o.result.prob && flexCfg().applied.length===1,JSON.stringify({main:S.fp.simB.prob,opt:o.result.prob})];
  }],
  ['Flexibility','The site-budget option adds sites through the optimizer; applying it sets a custom budget',async()=>{
-  await r2Ready();S.fpp.budgetMode='custom';S.fpp.budget=4;await recompute();await waitFor(()=>simulationResultsCurrent());const s0=S.fp.simB;S.params.target=Math.max(10,Math.round(s0.p50[s0.deadline]*1.25));await recompute();await waitFor(()=>simulationResultsCurrent());
+  await r2Ready();Object.assign(S.fpp,FLEX_FIXTURE_UNCERTAINTY);S.fpp.budgetMode='custom';S.fpp.budget=4;await recompute();await waitFor(()=>simulationResultsCurrent());const s0=S.fp.simB;S.params.target=Math.max(10,Math.round(s0.p50[s0.deadline]*1.25));await recompute();await waitFor(()=>simulationResultsCurrent());
   Object.assign(flexCfg().budget,{on:true,max:40});const b0=S.fp.budgetB,lever=flexLevers().find(l=>l.key==='budget');const r=await runFlexSearch();const i=r.result.options.findIndex(o=>o.levels.budget);
   if(i<0)return [false,JSON.stringify(r.error||r.result.infeasible)];const o=r.result.options[i];const ref=MC_KERNELS.optimizeAllocCore(S.fpp,flexPayload({budget:o.levels.budget},400).payload.fp.rows,b0+o.levels.budget,S.fp.allocA).alloc;
   const a=applyFlexOption(i,'Budget for more sites approved');await a.job;
@@ -9712,7 +9740,7 @@ UI_TESTS.push(
  }],
  ['Retrospective','Trial-level uncertainty off reproduces the frozen engine; on it is seed-reproducible and widens the range',async()=>{
   const rowsBy={A:{country:'A',rate:0.5,startup:3}},P={...DEFAULT_PARAMS,seed:7,sims:400,target:200,deadline:18};
-  const s0=MC_KERNELS.simulateFootprintCore(P,{...DEFAULT_FPP,sigmaTrialEff:0},{A:20},rowsBy);S.params=P;S.fpp={...DEFAULT_FPP};const ref=referenceSimulateFootprint({A:20},rowsBy);
+  const s0=MC_KERNELS.simulateFootprintCore(P,{...DEFAULT_FPP,sigmaTrialEff:0,staggerSites:0},{A:20},rowsBy);S.params=P;S.fpp={...DEFAULT_FPP,staggerSites:0};const ref=referenceSimulateFootprint({A:20},rowsBy);
   const s1=MC_KERNELS.simulateFootprintCore(P,{...DEFAULT_FPP,sigmaTrialEff:0.5},{A:20},rowsBy),s1b=MC_KERNELS.simulateFootprintCore(P,{...DEFAULT_FPP,sigmaTrialEff:0.5},{A:20},rowsBy);
   const wid=s=>s.p90[18]-s.p10[18];
   return [JSON.stringify(s0)===JSON.stringify(ref) && JSON.stringify(s1)===JSON.stringify(s1b) && wid(s1)>1.5*wid(s0),JSON.stringify({w0:wid(s0),w1:wid(s1)})];
@@ -9732,6 +9760,22 @@ UI_TESTS.push(
   const r1=(o.alloc.A||0)+(o.alloc.B||0),flag=o.diag.infeasible.some(x=>/^B: keep ≥ 20 not achievable, limited to 0 by the region cap \(R1, 20 sites\)/.test(x));
   return [r1<=20 && o.alloc.C===20 && o.total===40 && flag && off.alloc.A===20 && off.alloc.B===20 && !off.diag.infeasible.length,JSON.stringify({alloc:o.alloc,infeasible:o.diag.infeasible,off:off.alloc})];
  }],
+ ['Round 4','Slow-trial share: off draws nothing (identical to the v0.9.3 kernel); on it lowers the 10th percentile and keeps the 90th',async()=>{
+  const rowsBy={A:{country:'A',rate:0.5,startup:3}},P={...DEFAULT_PARAMS,seed:11,sims:2000,target:1e6,deadline:18},F={...DEFAULT_FPP,staggerSites:0,sigmaTrialEff:0.6};
+  const off=MC_KERNELS.simulateFootprintCore(P,{...F,slowShare:0},{A:20},rowsBy),off2=MC_KERNELS.simulateFootprintCore(P,{...F,slowShare:0,slowFactor:0.01},{A:20},rowsBy),on=MC_KERNELS.simulateFootprintCore(P,{...F,slowShare:0.15},{A:20},rowsBy);
+  return [JSON.stringify(off)===JSON.stringify(off2) && on.p10[18]<0.8*off.p10[18] && on.p90[18]>=0.85*off.p90[18],JSON.stringify({p10:[off.p10[18],on.p10[18]],p90:[off.p90[18],on.p90[18]]})];
+ }],
+ ['Round 4','Activation spread grows with the footprint: a large plan opens sites later, a plan below (stagger/k)² sites is unchanged',async()=>{
+  const rowsBy={A:{country:'A',rate:0.5,startup:3}},P={...DEFAULT_PARAMS,seed:5,sims:400,target:1e6,deadline:18},F={...DEFAULT_FPP,sigmaTrialEff:0};
+  const big0=MC_KERNELS.simulateFootprintCore(P,{...F,staggerSites:0},{A:100},rowsBy),big1=MC_KERNELS.simulateFootprintCore(P,{...F,staggerSites:1},{A:100},rowsBy);
+  const sm0=MC_KERNELS.simulateFootprintCore(P,{...F,staggerSites:0},{A:4},rowsBy),sm1=MC_KERNELS.simulateFootprintCore(P,{...F,staggerSites:1},{A:4},rowsBy);
+  return [big1.p50[10]<0.8*big0.p50[10] && JSON.stringify(sm0)===JSON.stringify(sm1),JSON.stringify({big:[big0.p50[10],big1.p50[10]]})];
+ }],
+ ['Round 4','Thin evidence (fewer than thinN usable comparators) takes the σ cap and is flagged; enough comparators are not flagged',async()=>{
+  const items=k=>Array.from({length:k},(_,i)=>({rate:0.2+0.01*i,n:100}));
+  const thin=sizeMatchedRates({global:{medRate:0.3,items:items(8)}},{...DEFAULT_FPP},{target:100},{sites:10,source:null}),ok=sizeMatchedRates({global:{medRate:0.3,items:items(40)}},{...DEFAULT_FPP},{target:100},{sites:10,source:null});
+  return [thin.thin && thin.sigmaTrial===DEFAULT_FPP.sigmaHi && !ok.thin && ok.sigmaTrial<DEFAULT_FPP.sigmaHi,JSON.stringify({thin:thin.sigmaTrial,ok:ok.sigmaTrial})];
+ }],
  ['Retrospective','Comparators are weighted by size; thin evidence widens uncertainty; the as-of date limits both registry queries',async()=>{
   const g={medRate:0.3,items:[{rate:1,n:5000},{rate:0.1,n:50},{rate:0.1,n:60},{rate:0.1,n:40}]};
   const on=sizeMatchedRates({global:g},{...DEFAULT_FPP,sizeMatch:1},{target:5000}),off=sizeMatchedRates({global:g},{...DEFAULT_FPP,sizeMatch:0},{target:5000}),legacy=sizeMatchedRates({global:{medRate:0.3}},{...DEFAULT_FPP},{target:5000});
@@ -9739,7 +9783,7 @@ UI_TESTS.push(
   const urls=[],realFetch=window.fetch;window.fetch=async u=>{urls.push(decodeURIComponent(String(u)));return new Response(JSON.stringify({studies:[],totalCount:0}),{status:200,headers:{'Content-Type':'application/json'}});};
   try{S.brief.condition='fixture';S.brief.asOf='2012-05-01';await collectRegistry();}finally{window.fetch=realFetch;}
   const q=urls.join(' ');
-  return [on.global===1 && off.global===0.3 && on.sigmaTrial===0.9 && legacy.sigmaTrial===0 && ym==='2016-01-01' && bad==='' && /StartDate\]RANGE\[MIN,2012-05-01\]/.test(q) && /PrimaryCompletionDate\]RANGE\[MIN,2012-05-01\]/.test(q) && followupMonths(['Up to 5 years'])===60 && S.web?.query?.asOf==='2012-05-01',JSON.stringify({on,off:off.global,legacy:legacy.sigmaTrial,ym,bad,urls:urls.length})];
+  return [on.global===1 && off.global===0.3 && on.sigmaTrial===DEFAULT_FPP.sigmaHi && on.thin && legacy.sigmaTrial===0 && ym==='2016-01-01' && bad==='' && /StartDate\]RANGE\[MIN,2012-05-01\]/.test(q) && /PrimaryCompletionDate\]RANGE\[MIN,2012-05-01\]/.test(q) && followupMonths(['Up to 5 years'])===60 && S.web?.query?.asOf==='2012-05-01',JSON.stringify({on,off:off.global,legacy:legacy.sigmaTrial,ym,bad,urls:urls.length})];
  }],
  ['Retrospective','An impossible as-of date is rejected visibly instead of reaching the registry query or silently using today\'s data',async()=>{
   const keep={asOf:S.brief.asOf,condition:S.brief.condition},got={};

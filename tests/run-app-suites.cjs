@@ -13,7 +13,7 @@ const SUITES = {
 };
 (async () => {
   const pick = process.argv.slice(2).filter(a => SUITES[a]);
-  const b = await chromium.launch(); let failed = 0;
+  const b = await chromium.launch(process.env.PW_EXE ? { executablePath: process.env.PW_EXE } : {}); let failed = 0;
   for (const [name, fn] of Object.entries(SUITES)) {
     if (pick.length && !pick.includes(name)) continue;
     const p = await b.newPage(); const errs = []; p.on('pageerror', e => errs.push(e.message));

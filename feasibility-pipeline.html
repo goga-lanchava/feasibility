@@ -10315,8 +10315,10 @@ void main() {
   uv -= uDrag * touch;
 
   float t = uTime;
-  uv = rotate(0.06 * uFlow * sin(t * 0.17)) * uv;
-  uv += 0.05 * uFlow * vec2(sin(t * 0.21), cos(t * 0.13));
+  // slow continuous turn around the screen centre plus a wandering drift, so the folds travel over the whole page
+  // (about one turn every 1.5 minutes: every part of the screen is lit within each minute, not just the left side)
+  uv = rotate(0.06 * uFlow * sin(t * 0.17) + t * 0.1) * uv;
+  uv += vec2(0.6 * sin(t * 0.09), 0.3 * sin(t * 0.13 + 1.3)) + 0.05 * uFlow * vec2(sin(t * 0.21), cos(t * 0.13));
   uv = anchor + mat2(uTurn.x, uTurn.y, -uTurn.y, uTurn.x) * uv * 2.0 / uZoom;
   uv += uWarp * vec2(sin(uv.y * 6.283 + t * 0.5), cos(uv.x * 6.283 + t * 0.5)) * 0.05;
 
@@ -10682,5 +10684,64 @@ details.note-fold>summary{cursor:pointer;font-size:12.5px;color:var(--on-surface
 .fc-end{font:600 10.5px var(--ff-sans);fill:var(--on-surface-variant);letter-spacing:.02em}
 .fc-end-m{fill:var(--on-surface)}
 </style>
+<style id="cf-motion-style">
+/* Motion (taste-skill motion tokens). Short and quiet: these moves are seen many times per session.
+   Transform and opacity only; everything below is dropped under prefers-reduced-motion. */
+:root{--ease-out:cubic-bezier(.22,1,.36,1);--ease-in-out:cubic-bezier(.76,0,.24,1);--t-press:140ms;--t-hover:180ms;--t-ui:240ms;--t-reveal:420ms}
+@media (prefers-reduced-motion:no-preference){
+  :root{interpolate-size:allow-keywords}
+  .btn,summary.btn,.task-tab,.plan-subtab,.path-card,.cf-help-trigger{transition:background-color var(--t-hover) ease,color var(--t-hover) ease,border-color var(--t-hover) ease,box-shadow var(--t-hover) ease,transform var(--t-press) var(--ease-out)}
+  .detail-card,.start-card,.decision,.tbl-wrap{transition:box-shadow var(--t-ui) ease,border-color var(--t-hover) ease}
+  .btn:active:not(:disabled),summary.btn:active,.task-tab:active,.plan-subtab:active,.path-card:active{transform:scale(.97)}
+  .btn-accent:hover:not(:disabled){transform:translateY(-1px)}
+  .btn-accent:active:not(:disabled){transform:translateY(0) scale(.97)}
+  .stat,.range-col,.check-row,.next-list li,.flag,.r2-card,.r3-card,.r3-resp,details.claude{transition:background-color var(--t-hover) ease,border-color var(--t-hover) ease,box-shadow var(--t-ui) ease,transform var(--t-ui) var(--ease-out)}
+  .stat:hover,.range-col:hover{background-color:rgba(255,255,255,.05)}
+  .next-list li:hover,.check-row:hover,.flag:hover{background-color:rgba(255,255,255,.05);transform:translateX(3px)}
+  .tbl tbody tr{transition:background-color 120ms ease}
+  .field input,.field select,textarea{transition:border-color var(--t-hover) ease,box-shadow var(--t-hover) ease,background-color var(--t-hover) ease}
+  .task-glider{transition:transform var(--t-ui) var(--ease-in-out),width var(--t-ui) var(--ease-in-out),height var(--t-ui) var(--ease-in-out)}
+  /* Disclosures open and close smoothly where the browser supports it; elsewhere they just open */
+  details:not(.menu)::details-content{block-size:0;overflow:clip;opacity:0;transition:block-size var(--t-ui) var(--ease-out),opacity var(--t-ui) ease,content-visibility var(--t-ui) allow-discrete}
+  details:not(.menu)[open]::details-content{block-size:auto;opacity:1}
+  /* Menus and panels arrive from where they were opened */
+  .menu[open] .menu-pop{animation:cfPop var(--t-ui) var(--ease-out);transform-origin:top right}
+  .settings-panel:not([hidden]){animation:cfRise var(--t-reveal) var(--ease-out)}
+  .bar-fill{transition:width var(--t-reveal) var(--ease-out)}
+}
+@keyframes cfPop{from{opacity:0;transform:translateY(-4px) scale(.97)}}
+@keyframes cfRise{from{opacity:0;transform:translateY(10px)}}
+</style>
+<script id="cf-motion-script">
+/* Staggered entrances when the view changes (page load, task tab, Plan section). Uses the Web Animations API, so
+   content is never hidden if this script fails, and ordinary re-renders after an input change do not replay it. */
+(function(){
+  'use strict';
+  if(matchMedia('(prefers-reduced-motion: reduce)').matches||!Element.prototype.animate)return;
+  const E='cubic-bezier(.22,1,.36,1)';
+  function rise(els,{y=14,step=55,dur=420,delay=0}={}){
+    els.filter(el=>el&&el.getClientRects().length).slice(0,12).forEach((el,i)=>{
+      el.animate([{opacity:0,transform:`translateY(${y}px)`},{opacity:1,transform:'none'}],
+        {duration:dur,delay:delay+i*step,easing:E,fill:'backwards'});
+    });
+  }
+  const kids=(sel,skip)=>{const n=document.querySelector(sel);return n?[...n.children].filter(c=>!(skip&&c.matches(skip))):[];};
+  function enterPanel(fromPlanSub){
+    const head=fromPlanSub?[]:[document.querySelector('.detail-title-group'),document.getElementById('detailImpact')];
+    rise([...head,...kids('#workspace',fromPlanSub?'.plan-subnav':null)],{delay:fromPlanSub?0:30});
+  }
+  document.addEventListener('click',e=>{
+    const t=e.target.closest('[data-act="task"],[data-act="planSub"]');
+    if(!t||t.getAttribute('aria-selected')==='true')return;
+    const sub=t.dataset.act==='planSub';
+    requestAnimationFrame(()=>requestAnimationFrame(()=>enterPanel(sub)));
+  },true);
+  function onLoad(){
+    rise([document.querySelector('.pipeline-header'),document.getElementById('demoBanner'),document.getElementById('taskTabs'),
+      document.getElementById('taskActions'),document.getElementById('startHere'),document.getElementById('detailCard')],{y:18,step:70,dur:560});
+  }
+  if(document.readyState==='complete')onLoad();else addEventListener('load',onLoad,{once:true});
+})();
+</script>
 </body>
 </html>

@@ -9,7 +9,11 @@ A single-file browser tool for clinical-trial feasibility and bid-defense work, 
   historical site data and benchmark data imported from Citeline, Medidata or your own trials (CSV export).
 - **Plan**: Monte Carlo enrollment forecast for the sponsor footprint and a recommended footprint, assumptions, what-ifs,
   country and site decisions.
-- **Report**: decision summary (range first), risks, site questionnaires and exports.
+- **Report**: decision summary (answer first: the expected result against the target, why, the bid-defense argument with
+  the smallest change that reaches the goal in sites, one more country, time or target, next actions, and how the chance
+  changes with each country left out or added), grouped risks, site questionnaires prefilled with named investigators,
+  competing trials and the standard of care that the site confirms or corrects (in the app or as a returned CSV), and the
+  bid-defense pack (.md) with the country evidence and decisions as appendices.
 
 Forecasts are scenario estimates from a registry-based model, not validated predictions. In a retrospective back-test of 57
 completed trials (`stress-test/STRESS-TEST-REPORT.md`, v0.9.4) the 80% range contained the actual result in 84% of trials,

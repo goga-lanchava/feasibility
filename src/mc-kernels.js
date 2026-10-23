@@ -3,7 +3,7 @@
  * Pure functions: no DOM, no application state, no network, no dynamic code compilation.
  * The page executes this script directly on the main thread and hands the identical text to the Blob Web Worker.
  * Loads as a classic script (sets self.MC_KERNELS) or as a CommonJS module (module.exports) for the offline test runner.
- * Seeded RNG draw order, quantile definitions and recruitment equations are unchanged from v0.5.0. */
+ * Seeded RNG draw order, quantile definitions and recruitment equations are unchanged. */
 (function (root, factory) {
   const api = factory();
   if (typeof module === 'object' && module && module.exports) module.exports = api;
@@ -111,19 +111,19 @@ function simulateFootprintCore(P,F,alloc,rowsBy,nOverride,progress = () => {}) {
   for (const [c, n] of Object.entries(alloc)) { const row = rowsBy[c]; if (!row || !(n > 0)) continue; for (let i = 0; i < n; i++) sites.push({ c, rate: row.rate, startup: row.startup }); }
   const totals = Array.from({ length: H + 1 }, () => new Float64Array(N)); const reach = new Float64Array(N).fill(Infinity); const byC = {};
   const act = new Float64Array(sites.length), lam = new Float64Array(sites.length); const s2 = F.sigma * F.sigma / 2;
-  // Activation spread grows with the footprint (v0.9.9): large plans open sites over many months, not within a fixed
+  // Activation spread grows with the footprint: large plans open sites over many months, not within a fixed
   // stagger. staggerSites k → stagger = max(stagger, min(18, k·√sites)); 0 keeps the fixed stagger (and every result).
   const stag = F.staggerSites > 0 ? Math.max(F.stagger, Math.min(18, F.staggerSites * Math.sqrt(sites.length))) : F.stagger;
-  // Trial-level rate uncertainty (v0.9.1): one log-normal multiplier per run shared by every site, so the spread between
+  // Trial-level rate uncertainty: one log-normal multiplier per run shared by every site, so the spread between
   // whole trials is not averaged away across hundreds of sites. Drawn from its own stream: with sigmaTrialEff 0 the
   // site-level random sequence and every result are unchanged.
   const sT = F.sigmaTrialEff > 0 ? F.sigmaTrialEff : 0, rT = sT ? mulberry32((P.seed >>> 0) + 303) : null;
   for (let n = 0; n < N; n++) {
     if (n % Math.max(1,Math.ceil(N/100)) === 0) progress(n,N,"simulation");
-    // Median-preserving (v0.9.3): the comparator rate it scales is a median of trials, so the multiplier keeps that median.
+    // Median-preserving: the comparator rate it scales is a median of trials, so the multiplier keeps that median.
     // (A mean-preserving form, exp(σz − σ²/2), shifted the median forecast ~30% slower at σ 0.8 in the back-tests.)
-    // Slow-trial downside (v0.9.9): a share of whole trials recruits at a fraction of the comparator rate (protocol, competition
-    // or operational failure the registry cannot see). Calibrated on round-4 back-tests; with slowShare 0 nothing is drawn.
+    // Slow-trial downside: a share of whole trials recruits at a fraction of the comparator rate (protocol, competition
+    // or operational failure the registry cannot see). Calibrated on back-tests; with slowShare 0 nothing is drawn.
     const slow = F.slowShare > 0 && sT && rT() < F.slowShare ? F.slowFactor : 1;
     const trialF = sT ? slow * Math.exp(sT * randn(rT)) : 1;
     for (let j = 0; j < sites.length; j++) { act[j] = sites[j].startup + r() * stag; lam[j] = sites[j].rate * trialF * Math.exp(F.sigma * randn(r) - s2); }
@@ -149,7 +149,7 @@ function optimizeAllocCore(F,rows,budget,sponsorAlloc = {}) {
   const perMax = Math.max(F.minSites, Math.floor(F.maxShare * budget));
   const anyIntel = rows.some(r => r.intel);
   rows.forEach(r => { if (r.capOverride && !r.capOverride.applied) diag.notes.push(`${r.country}: cap override ignored, a reason is required`); });
-  // Optional regional cap (v0.9.1; off at 1): no world region takes more than this share of the budget; it also limits the sponsor keep-minimum
+  // Optional regional cap: no world region takes more than this share of the budget; it also limits the sponsor keep-minimum
   const regMax = F.maxRegionShare > 0 && F.maxRegionShare < 1 ? Math.max(F.minSites, Math.floor(F.maxRegionShare * budget)) : Infinity, regUsed = {};
   if (F.keepMin > 0) for (const c of Object.keys(sponsorAlloc)) {
     const r = rows.find(x => x.country === c);

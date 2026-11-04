@@ -5,7 +5,7 @@ Evidence: the 57 back-tested trials in `results-v093-all57.json` (rounds 1–3),
 from ClinicalTrials.gov, and one new hold-out trial (KEYNOTE-407) run through the user interface in headless Chromium.
 Every number below is produced by `analysis/evaluate_v093.py` (and `analysis/ui_backtest.cjs` for the hold-out).
 
-> **Status (v0.9.4, `CHANGELOG-v0.9.4.md`):** P1 (matching on patients per site), U1 (planned sites under Study) and U2 (no
+> **Status (v0.9.4, `CHANGELOG.md`, v0.9.4):** P1 (matching on patients per site), U1 (planned sites under Study) and U2 (no
 > tab jump) are implemented.
 > - Measured in the app on the same 57 trials and registry data: median timing error 41% → 33%, log-RMSE 0.73 → 0.65
 >   (rule of thumb 0.69), 80% range width 7.6× → 4.6× at 84% coverage, and KEYNOTE-407 13 → 16 months (actual 16).

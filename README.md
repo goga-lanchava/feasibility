@@ -15,11 +15,11 @@ A single-file browser tool for clinical-trial feasibility and bid-defense work, 
   competing trials and the standard of care that the site confirms or corrects (in the app or as a returned CSV), and the
   bid-defense pack (.md) with the country evidence and decisions as appendices.
 
-Forecasts are scenario estimates from a registry-based model, not validated predictions. In a retrospective back-test of 57
-completed trials (`stress-test/STRESS-TEST-REPORT.md`, v0.9.4) the 80% range contained the actual result in 84% of trials,
-with a median range width of 4.6× (p90/p10) and a median timing error of 33% for the central estimate (v0.9.3: 82%, 7.6×,
-41%). Enter the planned number of sites so that comparator trials can be matched on patients per site; without a site
-count the forecast falls back to the v0.9.3 weighting.
+Forecasts are scenario estimates from a registry-based model, not validated predictions. On 99 held-out trials not used for
+tuning (round 4, `stress-test/round4/ROUND4-REPORT.md`), about 3 in 4 actual enrollments fell inside the "8 in 10 runs"
+range (≈75%, below its nominal 80%) and the median miss was about 60%. The earlier 57-trial back-tests
+(`stress-test/STRESS-TEST-REPORT.md`) were used to calibrate the model and are not independent. Enter the planned number
+of sites so that comparator trials can be matched on patients per site.
 
 ## Repository layout
 | Path | Contents |
@@ -29,9 +29,11 @@ count the forecast falls back to the v0.9.3 weighting.
 | `tools/build.mjs` | Embeds `src/` into the HTML (`node tools/build.mjs`; `--check` verifies they are in sync) |
 | `tests/kernels.test.mjs` | Engine tests (`node --test tests/kernels.test.mjs`) |
 | `tests/run-app-suites.cjs` | Runs every in-app suite headless (`node tests/run-app-suites.cjs`; needs a localhost server and Playwright); they also run from Expert view |
+| `CHANGELOG.md` | Release notes, newest first |
 | `PROJECT-SCHEMA.md` | Saved-project file format |
-| `CHANGELOG-*.md` | Release notes |
-| `stress-test/` | Back-test inputs, per-trial results and report |
+| `examples/` | Example input: country evidence for an acute leukemia study, to load under Evidence |
+| `stress-test/` | Back-test inputs, per-trial results and reports (including the EMPA-REG OUTCOME protocol extract used in round 1) |
+| `stress-test/round4/` | The 203-trial round-4 back-test: selection, calibration, held-out sets and `ROUND4-REPORT.md` |
 | `stress-test/EVALUATION-v0.9.3.md` | Evaluation of v0.9.3: forecast skill vs baselines, comparator weighting, KEYNOTE-407 hold-out, prioritized improvements |
 | `stress-test/results-v094-*.json*` | v0.9.4 back-test results; the `.jsonl` holds both engines per trial on the same registry snapshot |
 | `stress-test/analysis/` | `rerun_backtests.cjs` (re-runs the back-tests in the app), `compare_v094.py` (v0.9.3 vs v0.9.4 and the σ check), `evaluate_v093.py` (the v0.9.3 evaluation from a comparator snapshot), `ui_backtest.cjs` (one back-test through the UI) |

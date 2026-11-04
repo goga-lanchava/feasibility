@@ -2,7 +2,7 @@
 
 Source: the ChatGPT code evaluation "Revision 2, v0.9.5 compared with v0.9.3" (14 Oct 2026), run against `feasibility-pipeline.html` v0.9.5 (SHA-256 fefaf6ba…).
 Each finding was reproduced in the real app (headless Chromium) or kernel by an independent agent. Each agent then designed a fix and validated it on a copy of the repository against the in-app suites.
-**Status (v0.9.6): all 13 fixes are applied, one commit each, in the order F02, F01, F03–F08, N01–N04, D01.** Each proposed fix was reviewed against the current code before it was applied. After every fix the full gate ran and passed: `node tools/build.mjs --check` in sync, `node --test tests/kernels.test.mjs` 10/10, and all 10 in-app suites. No fix was rejected. Where the review found a gap, the fix was extended (see "Applied with changes" below). Release notes: `CHANGELOG-v0.9.6.md`. The original proposed edits remain in `review-v095-proposed-fixes.json` for reference.
+**Status (v0.9.6): all 13 fixes are applied, one commit each, in the order F02, F01, F03–F08, N01–N04, D01.** Each proposed fix was reviewed against the current code before it was applied. After every fix the full gate ran and passed: `node tools/build.mjs --check` in sync, `node --test tests/kernels.test.mjs` 10/10, and all 10 in-app suites. No fix was rejected. Where the review found a gap, the fix was extended (see "Applied with changes" below). Release notes: `CHANGELOG.md`, v0.9.6. The original proposed edits remain in `review-v095-proposed-fixes.json` for reference.
 
 | ID | Finding | Verdict | Severity | Fix validated on a copy | Review before applying | Applied in v0.9.6 |
 |---|---|---|---|---|---|---|
@@ -18,7 +18,7 @@ Each finding was reproduced in the real app (headless Chromium) or kernel by an 
 | N02 | Benchmark number parsing too permissive (e.g. "12abc", negative counts) | real-defect | medium | yes | agrees; merged with N01 | yes, 86751d4 |
 | N03 | Clearing benchmark data deletes the audit log while rates stay applied | real-defect | medium | yes | agrees; extended | yes, a0ae36e |
 | N04 | Chained benchmark revert fails | real-defect | medium | yes | agrees, fix OK | yes, a56c386 |
-| D01 | Report text still says "no retrospective validation" | real-but-minor | low | yes | agrees, fix OK (figures checked against CHANGELOG-v0.9.4) | yes, f194206 |
+| D01 | Report text still says "no retrospective validation" | real-but-minor | low | yes | agrees, fix OK (figures checked against CHANGELOG.md (v0.9.4)) | yes, f194206 |
 
 ### Applied with changes
 - **F01:**

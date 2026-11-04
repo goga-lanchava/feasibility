@@ -1,6 +1,6 @@
 # Stress test: forecast vs actual recruitment, 57 completed trials
 
-## v0.9.4 — comparators matched on planned patients per site (14 Oct 2026; `CHANGELOG-v0.9.4.md`)
+## v0.9.4 — comparators matched on planned patients per site (14 Oct 2026; `CHANGELOG.md`, v0.9.4)
 
 All 57 trials re-run in the application with `analysis/rerun_backtests.cjs`, same method as below. Both engines ran on the
 same registry snapshot per trial (`results-v094-rerun.jsonl`), and the v0.9.3 engine reproduces `results-v093-all57.json`
@@ -31,7 +31,7 @@ Reading:
 - **Caveat:** each trial's final registry site count includes any sites added when recruitment lagged. That flatters
   matching on patients per site somewhat compared with prospective use, where only the planned count is known.
 
-## v0.9.3 — calibration applied and verified on all 57 trials (14 Oct 2026; `CHANGELOG-v0.9.3.md`)
+## v0.9.3 — calibration applied and verified on all 57 trials (14 Oct 2026; `CHANGELOG.md`, v0.9.3)
 
 Same method as round 3 for every trial; per-trial results in `stress-test/results-v093-all57.json`.
 
@@ -102,7 +102,7 @@ actual months. (The optional sensitivity scenarios were skipped to save time; th
 or user-entered benchmark instead of a global factor; (d) warn when fewer than 30 completed comparators are found and suggest
 broader condition terms.
 
-## Round 2 fixes verified (v0.9.2, 14 Oct 2026; `CHANGELOG-v0.9.2.md`)
+## Round 2 fixes verified (v0.9.2, 14 Oct 2026; `CHANGELOG.md`, v0.9.2)
 
 All nine back-tests were rerun with v0.9.2 (same method as below).
 - **Forecasts:** identical to v0.9.1, as intended (model untouched): median |error| 36%, 8/9 actuals inside the 80% range.
@@ -194,7 +194,7 @@ Sources (round 2): [ASCO Post — MONALEESA-2](https://ascopost.com/issues/july-
 
 ---
 
-## Update — v0.9.1 rerun (after fixes; details in `CHANGELOG-v0.9.1.md`)
+## Update — v0.9.1 rerun (after fixes; details in `CHANGELOG.md`, v0.9.1)
 
 Two corrections to the original findings below:
 - **Time windows were not dropped.** Windows such as “within 2 months” are stored, evaluated against dated records and shown as a

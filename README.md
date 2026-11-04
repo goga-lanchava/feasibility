@@ -1,45 +1,95 @@
 # Trial Feasibility Pipeline
 
-A single-file browser tool for clinical-trial feasibility and bid-defense work, for any indication. Open
-`feasibility-pipeline.html` in Chrome or Edge (served from `localhost` for full functionality) and work through four tabs:
+**Can this clinical trial recruit its patients on time, and where should it run?**
 
-- **Study**: indication, target, enrollment window, planned number of sites, proposed countries and protocol eligibility
-  criteria (rule-based parser, optional Claude or Gemini parsing), with a review checklist before running.
-- **Evidence**: ClinicalTrials.gov landscape (competing and completed trials, countries, sites), optional country research,
-  historical site data and benchmark data imported from Citeline, Medidata or your own trials (CSV export).
-- **Plan**: Monte Carlo enrollment forecast for the sponsor footprint and a recommended footprint, assumptions, what-ifs,
-  country and site decisions.
-- **Report**: decision summary (answer first: the expected result against the target, why, the bid-defense argument with
-  the smallest change that reaches the goal in sites, one more country, time or target, next actions, and how the chance
-  changes with each country left out or added), grouped risks, site questionnaires prefilled with named investigators,
-  competing trials and the standard of care that the site confirms or corrects (in the app or as a returned CSV), and the
-  bid-defense pack (.md) with the country evidence and decisions as appendices.
+The Trial Feasibility Pipeline answers that question for any study and any indication. It searches ClinicalTrials.gov for
+comparable trials, forecasts recruitment for the sponsor's countries and sites, recommends a footprint, and says plainly
+what it would take to reach the target: more sites, another country, more time or a smaller target. It is built for
+feasibility teams and bid-defense work at CROs and sponsors.
 
-Forecasts are scenario estimates from a registry-based model, not validated predictions. On 99 held-out trials not used for
-tuning (round 4, `stress-test/round4/ROUND4-REPORT.md`), about 3 in 4 actual enrollments fell inside the "8 in 10 runs"
-range (≈75%, below its nominal 80%) and the median miss was about 60%. The earlier 57-trial back-tests
-(`stress-test/STRESS-TEST-REPORT.md`) were used to calibrate the model and are not independent. Enter the planned number
-of sites so that comparator trials can be matched on patients per site.
+Everything runs in your browser from one file. There is nothing to install and no account to create.
 
-## Repository layout
+## Get started
+
+1. Download `feasibility-pipeline.html` from this repository.
+2. Open it in Chrome or Edge.
+
+   For everything to work, serve it from your own computer instead of double-clicking it. In the folder that holds the
+   file, run `python -m http.server 8765`, then open <http://localhost:8765/feasibility-pipeline.html>.
+3. Start a study in one of three ways:
+   - **Import from ClinicalTrials.gov:** type an NCT number and the study details, countries, sites and eligibility
+     criteria are filled in for you.
+   - **Paste a protocol** or synopsis, or just name the indication.
+   - **Try an example:** ulcerative colitis or type 2 diabetes, with synthetic data.
+4. Click **Run the analysis** and read the Report.
+
+## What you get
+
+The tool works in four steps, shown as tabs:
+
+| Tab | What happens |
+|---|---|
+| **Study** | The indication, target, recruitment window, planned sites and proposed countries, and the eligibility criteria read from the protocol. |
+| **Evidence** | Competing and completed trials from ClinicalTrials.gov, by country and site. You can add your own past-trial data or benchmark exports (Citeline, Medidata). |
+| **Plan** | A recruitment forecast for the sponsor's plan and for a recommended footprint, with what-ifs and country and site decisions. |
+| **Report** | The answer, the reasons and the next steps, ready for a bid defense. |
+
+The Report gives you:
+
+- **The answer first:** how many participants to expect by the deadline, the likely range, and the chance of reaching the
+  target on time.
+- **Why:** pace, start-up time and country mix.
+- **What it would take:** the smallest change that reaches the goal. Click any option to see its plan and its forecast
+  against yours.
+- **Country mix:** how the chance changes when each country is left out or added.
+- **Risks and next steps,** grouped by country and topic.
+- **Site questionnaires,** prefilled with investigators, competing trials and the standard of care, for sites to confirm
+  or correct.
+- **Exports:** an executive summary to copy, and a bid-defense pack (Markdown) with the evidence behind every number.
+
+Save your work with **Save project** and open it again later with **Load project**.
+
+## How far to trust the forecast
+
+The forecasts are scenario estimates, not guarantees. The model simulates the trial thousands of times, using recruitment
+rates from comparable completed trials.
+
+- **Tested on real trials.** On 99 trials that were held back and not used for tuning, about 3 in 4 actual results fell
+  inside the tool's "8 in 10" range. The middle forecast missed by about 60% in a typical trial.
+- **Your own numbers make it better.** The recruitment rate per site matters most. Rates from your own past trials or
+  from site questionnaires change the forecast far more than any other input.
+- **No verdict when the inputs can't support one.** For example, a one-site study, a non-drug study, or a window that ends
+  before the first site can open. The tool then says why and shows its numbers for reference only.
+
+The test details are in `stress-test/round4/ROUND4-REPORT.md`.
+
+## Your data
+
+- **Patient data never leaves your computer.** De-identified patient extracts (CSV or FHIR) are read in your browser.
+  They are saved in a project file only if you choose to include them.
+- **Registry searches** send the study's condition and filters to ClinicalTrials.gov.
+- **AI features are optional.** Protocol reading and country research with Claude or Gemini use your own API key. They
+  send the protocol text or study brief, never patient data, and ask you first.
+
+## Good to know
+
+- One file works for any indication. Nothing is tied to a particular disease.
+- Without patient data, the eligibility criteria do not change the forecast. The rate comes from comparator trials, which
+  have their own criteria. With a patient extract, each record is checked against the criteria.
+- Release notes are in [`CHANGELOG.md`](CHANGELOG.md).
+
+## For developers
+
 | Path | Contents |
 |---|---|
-| `feasibility-pipeline.html` | The tool (single file; the engine is embedded from `src/`) |
-| `src/mc-kernels.js`, `src/mc-worker.js` | Monte Carlo engine and Web Worker adapter |
-| `tools/build.mjs` | Embeds `src/` into the HTML (`node tools/build.mjs`; `--check` verifies they are in sync) |
-| `tests/kernels.test.mjs` | Engine tests (`node --test tests/kernels.test.mjs`) |
-| `tests/run-app-suites.cjs` | Runs every in-app suite headless (`node tests/run-app-suites.cjs`; needs a localhost server and Playwright); they also run from Expert view |
-| `CHANGELOG.md` | Release notes, newest first |
-| `PROJECT-SCHEMA.md` | Saved-project file format |
-| `examples/` | Example input: country evidence for an acute leukemia study, to load under Evidence |
-| `stress-test/` | Back-test inputs, per-trial results and reports (including the EMPA-REG OUTCOME protocol extract used in round 1) |
-| `stress-test/round4/` | The 203-trial round-4 back-test: selection, calibration, held-out sets and `ROUND4-REPORT.md` |
-| `stress-test/EVALUATION-v0.9.3.md` | Evaluation of v0.9.3: forecast skill vs baselines, comparator weighting, KEYNOTE-407 hold-out, prioritized improvements |
-| `stress-test/results-v094-*.json*` | v0.9.4 back-test results; the `.jsonl` holds both engines per trial on the same registry snapshot |
-| `stress-test/analysis/` | `rerun_backtests.cjs` (re-runs the back-tests in the app), `compare_v094.py` (v0.9.3 vs v0.9.4 and the σ check), `evaluate_v093.py` (the v0.9.3 evaluation from a comparator snapshot), `ui_backtest.cjs` (one back-test through the UI) |
+| `feasibility-pipeline.html` | The tool. The simulation engine is embedded from `src/`. |
+| `src/` | Simulation engine (`mc-kernels.js`) and its Web Worker adapter (`mc-worker.js`) |
+| `tools/build.mjs` | Embeds `src/` into the HTML (`node tools/build.mjs`; `--check` verifies they match) |
+| `tests/` | Engine tests (`node --test tests/kernels.test.mjs`) and a headless runner for the in-app test suites (`node tests/run-app-suites.cjs`, needs Playwright and a local server) |
+| `PROJECT-SCHEMA.md` | Format of saved project files |
+| `examples/` | Example input: country evidence for an acute leukemia study |
+| `stress-test/` | Back-tests on completed trials: inputs, results and reports |
 
-## Development
-1. Edit engine code in `src/`, then run `node tools/build.mjs`.
-2. Serve the folder locally, e.g. `python -m http.server 8765`, and open `http://localhost:8765/feasibility-pipeline.html`.
-3. Before a release: `node tests/run-app-suites.cjs` (or the suites in Expert view), `node --test tests/kernels.test.mjs`,
-   `node tools/build.mjs --check`; for engine changes, re-run the back-tests (`stress-test/analysis/rerun_backtests.cjs`).
+To change the engine, edit `src/`, then run `node tools/build.mjs`. Before a release, run the in-app suites (Settings ›
+Technical tools › Expert view, or `node tests/run-app-suites.cjs`), `node --test tests/kernels.test.mjs` and
+`node tools/build.mjs --check`.

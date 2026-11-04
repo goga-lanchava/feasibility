@@ -1,0 +1,61 @@
+{
+ "date": "2026-10-15T14:41:44.028Z",
+ "log": {
+  "completed/PHASE1": {
+   "fetched": 5151,
+   "eligible": 213,
+   "picked": 4
+  },
+  "completed/PHASE2": {
+   "fetched": 6000,
+   "eligible": 408,
+   "picked": 12
+  },
+  "completed/PHASE3": {
+   "fetched": 6000,
+   "eligible": 561,
+   "picked": 12
+  },
+  "completed/PHASE4": {
+   "fetched": 4276,
+   "eligible": 172,
+   "picked": 4
+  },
+  "terminated/PHASE1": {
+   "fetched": 3228,
+   "eligible": 190,
+   "picked": 2
+  },
+  "terminated/PHASE2": {
+   "fetched": 4000,
+   "eligible": 439,
+   "picked": 8
+  },
+  "terminated/PHASE3": {
+   "fetched": 2093,
+   "eligible": 268,
+   "picked": 5
+  },
+  "terminated/PHASE4": {
+   "fetched": 1559,
+   "eligible": 151,
+   "picked": 2
+  },
+  "withdrawn/PHASE1": {
+   "fetched": 1079,
+   "eligible": 1,
+   "picked": 1
+  },
+  "withdrawn/PHASE2": {
+   "fetched": 1752,
+   "eligible": 2,
+   "picked": 1
+  },
+  "withdrawn/PHASE3": {
+   "fetched": 714,
+   "eligible": 0,
+   "picked": 0
+  }
+ },
+ "size": 49
+}

@@ -1,4 +1,35 @@
-# Stress test: forecast vs actual recruitment, 5 completed trials
+# Stress test: forecast vs actual recruitment, 57 completed trials
+
+## v0.9.4 — comparators matched on planned patients per site (14 Oct 2026; `CHANGELOG-v0.9.4.md`)
+
+All 57 trials re-run in the application with `analysis/rerun_backtests.cjs`, same method as below. Both engines ran on the
+same registry snapshot per trial (`results-v094-rerun.jsonl`), and the v0.9.3 engine reproduces `results-v093-all57.json`
+exactly (57/57). Per-trial v0.9.4 results: `results-v094-all57.json`. Table: `analysis/compare_v094.py`.
+
+| | Trials | Median abs. timing error | Log-RMSE | Actual inside 80% range | Median range width |
+|---|---|---|---|---|---|
+| **All, v0.9.3** | 57 | 41% | 0.73 | 82% | 7.6× |
+| **All, v0.9.4** | 57 | **33%** | **0.65** | **84%** | **4.6×** |
+| Rounds 1–2, v0.9.3 → v0.9.4 | 9 | 31% → 16% | 0.43 → 0.37 | 100% → 100% | 7.8× → 4.7× |
+| Round 3, v0.9.3 → v0.9.4 | 48 | 43% → 33% | 0.77 → 0.69 | 79% → 81% | 7.5× → 4.3× |
+| < 30 usable comparators | 25 | 42% → 33% | 0.75 → 0.70 | 68% → 84% | 9.0× → 5.7× |
+| ≥ 30 usable comparators | 32 | 41% → 32% | 0.71 → 0.62 | 94% → 84% | 7.3× → 4.1× |
+| Rule of thumb: median duration of the other trials | 57 | 44% | 0.69 | — | — |
+
+Reading:
+- **Point forecast:** the central estimate now beats the rule of thumb, modestly (log-RMSE 0.65 vs 0.69, median error 33%
+  vs 44%).
+- **Ranges:** they stay honest (84%) at well under two-thirds of the width.
+- **Remaining bias:** forecasts are still too spread out (slope of actual on forecast 0.42 → 0.57). The longest third of
+  forecasts is still too slow, but less so (median bias +56% → +27%).
+- **Where matching applies:** 45 of 57 trials. The other 12 have fewer than 5 effective comparators with a similar load,
+  or fewer than 3 usable comparators, and keep the v0.9.3 weighting.
+- **σ rule:** unchanged (0.8 × weighted SD). On the matched comparators it gives 81% coverage on round 3 and 9/9 on
+  rounds 1–2; 0.6 would give 69% and 1.0 would give 85% at 6.2× width.
+- **Hold-out KEYNOTE-407** (not among the 57; `holdout-keynote407.json`): 16 months from first patient (actual 16;
+  v0.9.3: 13). The 80% range of 297–1,170 contains the 559 randomised.
+- **Caveat:** each trial's final registry site count includes any sites added when recruitment lagged. That flatters
+  matching on patients per site somewhat compared with prospective use, where only the planned count is known.
 
 ## v0.9.3 — calibration applied and verified on all 57 trials (14 Oct 2026; `CHANGELOG-v0.9.3.md`)
 

@@ -1,0 +1,206 @@
+{
+ "version": "0.9.3",
+ "note": "Hold-out back-test run through the user interface (headless Chromium, localhost), same method as stress-test rounds 1-3: registry as of the trial start, history from 12 years before, target = actual randomised, window = actual recruitment months + 6 start-up, published site count (no registry site list, so the recommended footprint is used, as for KEYNOTE-189/-024). Driver: stress-test/analysis/ui_backtest.cjs.",
+ "inputs": [
+  {
+   "id": "NCT02775435",
+   "name": "KEYNOTE-407",
+   "cond": "Non-small cell lung cancer",
+   "n": 559,
+   "months": 16,
+   "window": 22,
+   "asOf": "2016-06-09",
+   "since": 2004,
+   "sites": 125,
+   "countries": 17,
+   "period": "Aug 2016 – Dec 2017",
+   "footprint": "",
+   "phases": [
+    2,
+    3
+   ],
+   "industryOnly": true,
+   "sources": [
+    "https://ascopost.com/News/59364",
+    "https://clinicaltrials.gov/study/NCT02775435"
+   ],
+   "proto": "Title: A Randomized, Double-Blind Phase III Study of Carboplatin-Paclitaxel/Nab-Paclitaxel Chemotherapy With or Without Pembrolizumab (MK-3475) in First Line Metastatic Squamous Non-small Cell Lung Cancer Subjects (KEYNOTE-407)\nSource: ClinicalTrials.gov NCT02775435 eligibility section\n\nInclusion Criteria:\n\n* Has a histologically or cytologically confirmed diagnosis of stage IV (M1a or M1b-American Joint Committee on Cancer \\[AJCC\\] 7th edition) squamous NSCLC.\n* Has measurable disease based on RECIST 1.1 as determined by the local site investigator/radiology assessment.\n* Has not received prior systemic treatment for metastatic NSCLC.\n* Has provided tumor tissue from locations not radiated prior to biopsy.\n* Has a life expectancy of at least 3 months.\n* Has a performance status of 0 or 1 on the Eastern Cooperative Oncology Group (ECOG) Performance Status.\n* Has adequate organ function.\n* If female of childbearing potential, is willing to use an adequate method of contraception for the course of the study through 180 days after the last dose of study drug.\n* If male with a female partner(s) of child-bearing potential, must agree to use an adequate method of contraception starting with the first dose of study drug through 95 days after the last dose of study drug. Males with pregnant partners must agree to use a condom; no additional method of contraception is required for the pregnant partner.\n\nExclusion Criteria:\n\n* Has non-squamous histology NSCLC.\n* Is currently participating and receiving study therapy or has participated in a study of an investigational agent and received study therapy or used an investigational device within 4 weeks prior to administration of pembrolizumab.\n* Before the first dose of study drug: a) Has received prior systemic cytotoxic chemotherapy for metastatic disease; b) Has received other targeted or biological antineoplastic therapy (e.g., erlotinib, crizotinib, cetuximab) for metastatic disease; c) Has had major surgery (\\<3 weeks prior to first dose).\n* Received radiation therapy to the lung that is \\> 30 Gy within 6 months of the first dose of study drug.\n* Completed palliative radiotherapy within 7 days of the first dose of study drug.\n* Is expected to require any other form of antineoplastic therapy while on study.\n* Has received a live-virus vaccination within 30 days of planned treatment start.\n* Has a known history of prior malignancy except if the participant has undergone potentially curative therapy with no evidence of that disease recurrence for 5 years since initiation of that therapy.\n* Has known active central nervous system (CNS) metastases and/or carcinomatous meningitis.\n* Has pre-existing peripheral neuropathy that is ≥ Grade 2 by Common Terminology Criteria for Adverse Events (CTCAE) version 4 criteria.\n* Previously had a severe hypersensitivity reaction to treatment with another monoclonal antibody.\n* Has a known sensitivity to any component of carboplatin or paclitaxel or nab-paclitaxel.\n* Has active autoimmune disease that has required systemic treatment in past 2 years.\n* Is on chronic systemic steroids.\n* Had prior treatment with any other anti-programmed cell death 1 (anti-PD-1), or programmed cell death ligand 1 (PD-L1) or PD-L2 agent or an antibody or a small molecule targeting other immuno-regulatory receptors or mechanisms.\n* Has participated in any other pembrolizumab trial and has been treated with pembrolizumab.\n* Has an active infection requiring therapy.\n* Has known history of Human Immunodeficiency Virus (HIV).\n* Has known active Hepatitis B or C. Active Hepatitis B.\n* Is, at the time of providing documented informed consent, a regular user (including \"recreational use\") of any illicit drugs or has a recent history (within the last year) of substance abuse (including alcohol).\n* Has interstitial lung disease or a history of pneumonitis that required oral or intravenous glucocorticoids to assist with management."
+  }
+ ],
+ "result": {
+  "parse": {
+   "rules": 36,
+   "manual": 8,
+   "incomplete": 16,
+   "contradictions": [
+    "metastatic required and excluded (from 'Has not received prior systemic treatment for metastatic NSCLC')"
+   ],
+   "indicationConflicts": [
+    "EXC NSCLC from 'Has non-squamous histology NSCLC'",
+    "EXC prior malignancy"
+   ]
+  },
+  "registry": {
+   "competing": 499,
+   "completed": 476,
+   "usable": 349,
+   "sizeWeightedRate": 0.291,
+   "sigmaTrial": 0.71
+  },
+  "forecast": {
+   "budget": 125,
+   "probability": 0.587,
+   "medianMonthsFromStudyStart": 20,
+   "p90MonthsFromStudyStart": 39,
+   "firstPatientMonth": 7,
+   "recruitmentMonthsFromFirstPatient": 13,
+   "rangeFromFirstPatient8of10": [
+    6,
+    32
+   ],
+   "p10AtDeadline": 259,
+   "p50AtDeadline": 651,
+   "p90AtDeadline": 1629,
+   "verdict": "At risk"
+  },
+  "footprint": [
+   {
+    "country": "Finland",
+    "sites": 10,
+    "modelledRate": 0.464,
+    "comparatorTrials": 8
+   },
+   {
+    "country": "India",
+    "sites": 25,
+    "modelledRate": 0.402,
+    "comparatorTrials": 34
+   },
+   {
+    "country": "Belarus",
+    "sites": 10,
+    "modelledRate": 0.38,
+    "comparatorTrials": 5
+   },
+   {
+    "country": "Indonesia",
+    "sites": 8,
+    "modelledRate": 0.367,
+    "comparatorTrials": 6
+   },
+   {
+    "country": "Georgia",
+    "sites": 7,
+    "modelledRate": 0.361,
+    "comparatorTrials": 5
+   },
+   {
+    "country": "Portugal",
+    "sites": 24,
+    "modelledRate": 0.354,
+    "comparatorTrials": 16
+   },
+   {
+    "country": "Mexico",
+    "sites": 25,
+    "modelledRate": 0.351,
+    "comparatorTrials": 24
+   },
+   {
+    "country": "Estonia",
+    "sites": 3,
+    "modelledRate": 0.346,
+    "comparatorTrials": 3
+   },
+   {
+    "country": "Croatia",
+    "sites": 9,
+    "modelledRate": 0.328,
+    "comparatorTrials": 6
+   },
+   {
+    "country": "China",
+    "sites": 4,
+    "modelledRate": 0.31,
+    "comparatorTrials": 43
+   }
+  ],
+  "footprintMeanRate": 0.372,
+  "actual": {
+   "recruitmentMonths": 16,
+   "ratePerSiteMonth": 0.28,
+   "error": "-19% (13 vs 16 months)",
+   "insideRange": true
+  },
+  "version": "0.9.3"
+ },
+ "resultV094": {
+  "version": "0.9.4",
+  "plannedSitesField": 125,
+  "comparatorMatch": "pps",
+  "comparatorBasis": "Comparator rate 0.24 patients/site/month: 349 completed comparator trials weighted by how closely their patients per site match this plan (4.5 = 559 ÷ 125 planned sites; about 290 trials carry most of the weight).",
+  "forecast": {
+   "probability": 0.4885,
+   "recruitmentMonthsFromFirstPatient": 16,
+   "p10AtDeadline": 279,
+   "p50AtDeadline": 551,
+   "p90AtDeadline": 1099,
+   "verdict": "Unlikely (49%; the actual 559 sits at the median of 551)"
+  },
+  "footprint": [
+   {
+    "country": "India",
+    "sites": 25,
+    "rate": 0.324,
+    "trials": 34
+   },
+   {
+    "country": "Sweden",
+    "sites": 25,
+    "rate": 0.302,
+    "trials": 21
+   },
+   {
+    "country": "Portugal",
+    "sites": 24,
+    "rate": 0.308,
+    "trials": 16
+   },
+   {
+    "country": "Mexico",
+    "sites": 22,
+    "rate": 0.292,
+    "trials": 24
+   },
+   {
+    "country": "Belarus",
+    "sites": 10,
+    "rate": 0.357,
+    "trials": 5
+   },
+   {
+    "country": "Croatia",
+    "sites": 9,
+    "rate": 0.337,
+    "trials": 6
+   },
+   {
+    "country": "Georgia",
+    "sites": 7,
+    "rate": 0.334,
+    "trials": 5
+   },
+   {
+    "country": "Estonia",
+    "sites": 3,
+    "rate": 0.295,
+    "trials": 3
+   }
+  ],
+  "actual": {
+   "recruitmentMonths": 16,
+   "error": "0% (16 vs 16 months)",
+   "insideRange": true
+  }
+ }
+}

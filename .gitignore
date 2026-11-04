@@ -3,3 +3,4 @@
 # Local Claude Code settings
 .claude/
 node_modules/
+__pycache__/

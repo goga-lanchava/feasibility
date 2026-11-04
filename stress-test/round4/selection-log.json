@@ -1,0 +1,65 @@
+{
+ "date": "2026-10-15T13:32:56.053Z",
+ "log": {
+  "completed/PHASE1": {
+   "fetched": 5151,
+   "eligible": 231,
+   "picked": 15
+  },
+  "completed/PHASE2": {
+   "fetched": 6000,
+   "eligible": 458,
+   "picked": 50
+  },
+  "completed/PHASE3": {
+   "fetched": 6000,
+   "eligible": 617,
+   "picked": 55
+  },
+  "completed/PHASE4": {
+   "fetched": 4276,
+   "eligible": 187,
+   "picked": 15
+  },
+  "terminated/PHASE1": {
+   "fetched": 3228,
+   "eligible": 200,
+   "picked": 8
+  },
+  "terminated/PHASE2": {
+   "fetched": 4000,
+   "eligible": 469,
+   "picked": 30
+  },
+  "terminated/PHASE3": {
+   "fetched": 2093,
+   "eligible": 288,
+   "picked": 20
+  },
+  "terminated/PHASE4": {
+   "fetched": 1559,
+   "eligible": 159,
+   "picked": 8
+  },
+  "withdrawn/PHASE1": {
+   "fetched": 1079,
+   "eligible": 4,
+   "picked": 3
+  },
+  "withdrawn/PHASE2": {
+   "fetched": 1752,
+   "eligible": 8,
+   "picked": 6
+  },
+  "withdrawn/PHASE3": {
+   "fetched": 714,
+   "eligible": 1,
+   "picked": 1
+  }
+ },
+ "sizes": {
+  "calibration": 103,
+  "validation": 50,
+  "lockbox": 50
+ }
+}

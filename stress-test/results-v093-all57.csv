@@ -1,0 +1,58 @@
+﻿NCT ID,Trial,Round,Area,Condition,Actual randomized,Actual recruitment months,Forecast months (first patient to target),Timing error %,Forecast too slow / fast,Forecast 10th pct randomized,Forecast median randomized,Forecast 90th pct randomized,Actual inside 80% range,Usable comparator trials,Thin evidence flag (<30),Trial-level uncertainty sigma,Forecast extrapolated
+NCT01131676,EMPA-REG OUTCOME,1,Cardiometabolic,Type 2 diabetes mellitus,7034,32,15,-53,too fast,4901,15333,50013,yes,282,no,0.9,no
+NCT01179048,LEADER,1,Cardiometabolic,Type 2 diabetes mellitus,9340,20,28,40,too slow,2106,6627,21449,yes,290,no,0.9,no
+NCT01720446,SUSTAIN-6,1,Cardiometabolic,Type 2 diabetes mellitus,3297,11,22,100,too slow,609,1678,4761,yes,483,no,0.793,no
+NCT03036124,DAPA-HF,1,Cardiometabolic,Heart failure with reduced ejection fraction,4744,19,18,-5,too fast,1684,5305,17198,yes,3,yes,0.9,no
+NCT02578680,KEYNOTE-189,1,Oncology,Non-small cell lung cancer,616,14,14,0,exact,256,640,1631,yes,333,no,0.714,no
+NCT01958021,MONALEESA-2,2,Oncology,Breast cancer,668,14,18,29,too slow,203,543,1444,yes,317,no,0.755,no
+NCT03548935,STEP 1,2,Obesity,Obesity,1961,6,10,67,too slow,368,1179,3756,yes,81,no,0.9,no
+NCT03887455,CLARITY AD,2,Neuro/Psych,Alzheimer disease,1795,25,21,-16,too fast,1020,2239,5119,yes,137,no,0.621,no
+NCT02142738,KEYNOTE-024,2,Oncology,Non-small cell lung cancer,305,13,9,-31,too fast,194,467,1126,yes,296,no,0.677,no
+NCT01796301,STRUCTURE,3,Other,Postmenopausal Osteoporosis,436,15,9,-40,too fast,302,801,2170,yes,34,no,0.751,no
+NCT00859898,NCT00859898,3,Cardiometabolic,Type 2 Diabetes Mellitus,1093,7,16,129,too slow,168,475,1404,yes,193,no,0.823,no
+NCT01412957,NCT01412957,3,Oncology,Metastatic Colorectal Cancer,377,21,16,-24,too fast,241,531,1186,yes,61,no,0.603,no
+NCT01628393,RADIANCE,3,Neuro/Psych,Relapsing Multiple Sclerosis,258,13,17,31,too slow,88,196,446,yes,50,no,0.62,no
+NCT02522780,NCT02522780,3,Immunology/Derm,Ulcerative Colitis,276,26,16,-38,too fast,210,473,1068,yes,66,no,0.626,no
+NCT03987620,Vanish 306,3,Infectious,Candida Vulvovaginitis,455,8,12,50,too slow,151,315,670,yes,10,yes,0.573,no
+NCT03927703,B-SIMPLE2,3,Other,Molluscum Contagiosum,355,2,6,200,too slow,29,98,311,no,4,yes,0.9,no
+NCT01665053,NCT01665053,3,Cardiometabolic,Coronary Artery Disease,1684,9,16,78,too slow,331,945,2771,yes,137,no,0.824,no
+NCT01080391,NCT01080391,3,Oncology,Relapsed Multiple Myeloma,792,20,21,5,too slow,424,785,1519,yes,13,yes,0.491,no
+NCT00969709,NCT00969709,3,Neuro/Psych,Major Depressive Disorder,724,17,18,6,too slow,279,723,1913,yes,69,no,0.75,no
+NCT02376790,NCT02376790,3,Immunology/Derm,Psoriatic Arthritis,851,28,21,-25,too fast,615,1159,2199,yes,27,yes,0.487,no
+NCT03244644,NCT03244644,3,Infectious,Clostridium Difficile Infection (CDI),320,31,20,-35,too fast,261,515,1004,yes,9,yes,0.514,no
+NCT00790751,REVIVE,3,Other,Erectile Dysfunction,646,5,15,200,too slow,73,212,608,no,12,yes,0.808,no
+NCT02207634,EBBINGHAUS,3,Cardiometabolic,Dyslipidemia,1974,10,7,-30,too fast,1061,3073,9159,yes,160,no,0.833,no
+NCT00876395,BOLERO-1,3,Oncology,Breast Cancer,719,39,23,-41,too fast,566,1240,2794,yes,122,no,0.619,no
+NCT02483585,ARISE,3,Neuro/Psych,Migraine,577,9,7,-22,too fast,275,752,2090,yes,48,no,0.777,no
+NCT02522767,NCT02522767,3,Immunology/Derm,Ulcerative Colitis,228,25,13,-48,too fast,200,449,1057,yes,65,no,0.637,no
+NCT00895011,NCT00895011,3,Other,Erectile Dysfunction,298,20,6,-70,too fast,455,1128,2833,no,14,yes,0.7,no
+NCT03299244,NCT03299244,3,Cardiometabolic,Secondary Hyperparathyroidism,637,16,16,0,exact,261,677,1821,yes,18,yes,0.748,no
+NCT03286842,NCT03286842,3,Oncology,HER2-ve Metastatic Breast Cancer,256,14,10,-29,too fast,123,397,1276,yes,0,yes,0.9,no
+NCT02706847,SELECT-BEYOND,3,Immunology/Derm,Rheumatoid Arthritis,499,10,9,-10,too fast,244,591,1444,yes,287,no,0.686,no
+NCT00636636,NCT00636636,3,Other,"Neuralgia,Postherpetic",452,14,18,29,too slow,216,362,600,yes,6,yes,0.384,no
+NCT02739984,BANTING,3,Cardiometabolic,Hypercholesterolemia,424,12,10,-17,too fast,191,549,1636,yes,104,no,0.832,no
+NCT02125461,PACIFIC,3,Oncology,Non-Small Cell Lung Cancer,713,23,13,-43,too fast,571,1381,3376,yes,286,no,0.685,no
+NCT02291549,RESOLVE_II,3,Other,Chronic Sinusitis,300,17,12,-29,too fast,151,452,1355,yes,7,yes,0.853,no
+NCT02344290,REPRIEVE,3,Cardiometabolic,HIV,7769,52,95,83,too slow,1356,4265,13849,yes,179,no,0.9,no
+NCT00789581,TITAN,3,Oncology,Breast Cancer,614,25,49,96,too slow,139,308,692,yes,99,no,0.617,yes
+NCT00765882,NCT00765882,3,Other,Chronic Constipation,633,5,12,140,too slow,81,258,834,yes,2,yes,0.9,no
+NCT01128153,NCT01128153,3,Cardiometabolic,Type 2 Diabetes,257,6,12,100,too slow,43,124,356,yes,278,no,0.8,no
+NCT02412878,ARROW,3,Oncology,Multiple Myeloma,478,11,18,64,too slow,112,301,824,yes,118,no,0.77,no
+NCT03036813,GBT_HOPE,3,Other,Sickle Cell Disease,449,16,31,94,too slow,132,231,397,no,22,yes,0.417,no
+NCT00789737,NCT00789737,3,Cardiometabolic,Type 2 Diabetes Mellitus,357,30,7,-77,too fast,655,1858,5439,no,178,no,0.823,no
+NCT02993731,CanStem111P,3,Oncology,"Carcinoma, Pancreatic Ductal",1134,24,14,-42,too fast,1416,2092,3072,no,6,yes,0.3,no
+NCT00797797,NCT00797797,3,Other,Fibromyalgia,364,6,6,0,exact,192,402,845,yes,15,yes,0.571,no
+NCT00823212,PLATINUM,3,Cardiometabolic,Coronary Artery Disease,1530,7,12,71,too slow,276,890,2867,yes,56,no,0.9,no
+NCT01302392,FOCUS,3,Oncology,Multiple Myeloma,315,25,16,-36,too fast,199,509,1348,yes,37,no,0.741,no
+NCT02186171,BRIDGE,3,Other,Osteoporosis in Men,245,7,28,300,too slow,17,57,182,no,6,yes,0.9,yes
+NCT01896232,NCT01896232,3,Cardiometabolic,Secondary Hyperparathyroidism,683,9,7,-22,too fast,321,1012,3306,yes,9,yes,0.9,no
+NCT01298323,NCT01298323,3,Oncology,Locally Advanced or Metastatic Medullary Thyroid Cancer,205,14,30,114,too slow,29,95,310,yes,3,yes,0.9,yes
+NCT00975143,NCT00975143,3,Other,Severe Nodular Acne,925,12,77,542,too slow,42,136,432,no,0,yes,0.9,yes
+NCT00692770,STORM,3,Oncology,"Carcinoma, Hepatocellular",1114,27,10,-63,too fast,1527,3397,7714,no,11,yes,0.627,no
+NCT01718483,NCT01718483,3,Other,Binge Eating Disorder,383,7,6,-14,too fast,148,484,1530,yes,3,yes,0.9,no
+NCT03126435,NCT03126435,3,Oncology,Metastatic Pancreas Cancer,218,21,11,-48,too fast,181,424,1011,yes,68,no,0.67,no
+NCT01575873,GIOP,3,Other,"Steroid-induced Osteopor, Glucocorticoid-induced Ostepor",795,39,35,-10,too fast,290,905,2981,yes,0,yes,0.9,no
+NCT02273167,MORA,3,Oncology,Colorectal Cancer,849,8,113,1313,too slow,18,58,176,no,146,no,0.877,yes
+NCT01880424,D5630C00001,3,Other,Irritable Bowel Syndrome With Constipation (IBS-C),1722,18,28,56,too slow,360,1129,3629,yes,4,yes,0.9,no
+NCT02753127,CanStem303C,3,Oncology,Colorectal Cancer,1253,29,21,-28,too fast,544,1747,5598,yes,171,no,0.9,no
+NCT03927716,NCT03927716,3,Other,Molluscum Contagiosum,352,2,5,150,too slow,41,132,424,yes,4,yes,0.9,no

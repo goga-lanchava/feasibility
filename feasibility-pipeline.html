@@ -4706,7 +4706,7 @@ function wsCountries() {
       <td>${r.outsideSponsor ? `<input type="checkbox" disabled aria-label="${esc(r.country)} is outside the sponsor list" title="Outside the sponsor's countries: untick “Plan within the sponsor's countries only” under Plan to allow it">` : `<input type="checkbox" data-fpc="${esc(r.country)}" data-fpk="allow" ${r.allow ? 'checked' : ''} aria-label="Allow ${esc(r.country)}">${r.lowEvidence ? ` <span class="chip" title="Fewer than ${fmt(S.fpp.minEvidence)} usable completed comparator trials: not recommended unless you tick Use">low evidence</span>` : ''}`}</td>
       <td><div class="score-cell"><div class="bar-track"><div class="bar-fill" style="width:${r.score}%"></div></div><span class="mono">${r.score.toFixed(0)}</span></div></td>
       <td class="num">${r.c.knownSites} / ${r.c.experienced}</td><td class="num">${r.c.nComp} (${r.c.nDirect})</td><td class="num expert-only">${fmt1(r.c.conc)}</td><td class="num" title="${r.c.rates.length} completed trials with usable enrollment data">${fmt2(r.baseRate)}${r.c.rates.length < 3 ? '*' : ''}</td>
-      <td><span class="chip ${r.evidence?.quality === 'none' || r.evidence?.quality === 'weak' ? 'med' : r.evidence?.quality === 'user supplied' ? 'info' : 'ok'}" title="${esc(`${r.rateBasis}; ${r.evidence?.trials ?? 0} trials; ${pct(r.evidence?.ownWeight)} of the rate from this country's own trials`)}">${esc(r.rateBasis)} · ${esc(r.evidence?.quality || '—')}</span></td>
+      <td><span class="chip ${r.evidence?.quality === 'none' || r.evidence?.quality === 'weak' ? 'med' : r.evidence?.quality === 'user supplied' ? 'info' : 'ok'}" title="${esc(`${r.rateBasis}; ${r.evidence?.trials ?? 0} trials; ${pct(r.evidence?.ownWeight)} of the rate from this country's own trials`)}">${esc(r.rateBasis)} · ${esc(r.evidence?.quality || '—')}${r.rateBasis === 'registry proxy' ? ` · ${fmt(r.evidence.trials)} ${r.evidence.trials === 1 ? 'trial' : 'trials'}` : ''}</span></td>
       <td>${accChip(r.intel?.comparator_access)}</td>
       <td class="num"><input type="number" step="0.5" min="0" data-fpc="${esc(r.country)}" data-fpk="startup" value="${(+r.startup).toFixed(1)}" aria-label="Start-up months"></td>
       <td class="num"><input type="number" step="0.01" min="0" data-fpc="${esc(r.country)}" data-fpk="rate" value="${r.rate.toFixed(3)}" aria-label="Per-site monthly rate"></td>
@@ -5832,7 +5832,7 @@ function summarizeSim(s) { return { sites: s.nSites, runs: s.N, probabilityOfTar
 
 
 /* Audited extension: research prototype. Offline inputs stay local. */
-const APP_VERSION = '0.9.17';
+const APP_VERSION = '0.9.18';
 const REPORT_SCHEMA = 'tfp-analysis/2';
 const FEEDBACK_COLS = ['site_id','site_name','country','interest','eligible_patients','enrollment_per_month','startup_months','competing_trials','response_date','challenges','source',
   'reporter','eligible_period_months','screened_per_month','randomized_per_month','enrollment_unit','screening_confirmation','competing_overlap','referral_pathways','investigators','coordinators','capabilities'];
@@ -7049,6 +7049,16 @@ function answerLine(H) {
     : `Expect about ${fmt(s.p50[at])} of ${fmt(T)} randomized by month ${fmt(D)} (likely range ${fmt(s.p10[at])}–${fmt(s.p90[at])})`;
   return `${head}; ${pct(s.prob)} of simulated runs reach ${fmt(T)} on time.`;
 }
+// What stands behind a recommended country: the completed comparator trials its rate comes from, and how much of its
+// usable experienced sites the plan would take. Stated as facts: in a split of ten indications' trials by date, countries
+// picked on few trials recruited as well later as those picked on many, so thin evidence does not change the ranking.
+const CAPACITY_SHARE_FLAG = 0.6;
+function countryEvidenceNote(countries, alloc = {}) {
+  const rows = countries.map(c => S.fp?.rowsBy[c]).filter(r => r && !r.assumed && r.evidence); if (!rows.length) return '';
+  const cap = r => MC_KERNELS.effectiveCap(r), n = r => alloc[r.country] || 0, tight = rows.filter(r => cap(r) > 0 && n(r) / cap(r) >= CAPACITY_SHARE_FLAG);
+  const one = r => `${r.country} ${r.evidence.quality === 'user supplied' ? '(your rate)' : `${fmt(r.evidence.trials)} ${r.evidence.trials === 1 ? 'trial' : 'trials'}`}${n(r) && cap(r) ? `, ${fmt(n(r))} of ${fmt(cap(r))} usable sites` : ''}`;
+  return ` Completed comparator trials behind these rates: ${rows.map(one).join('; ')}.${tight.length ? ` The plan would take most of the usable experienced sites in ${listJoin(tight.map(r => r.country))}: confirm that those sites are available before proposing ${tight.length === 1 ? 'it' : 'them'}.` : ''}`;
+}
 // Why the forecast comes out this way, as [label, sentence] pairs
 function whyLines(H) {
   const lead = H[0], s = lead.sim, T = S.params.target, D = S.params.deadline, out = [], d = fpiDuration(s), good = s.prob >= NEED_GOAL;
@@ -7064,7 +7074,7 @@ function whyLines(H) {
     if (sp && rec) {
       const dl = rec.sim.prob - sp.sim.prob, added = Object.keys(rec.alloc).filter(c => !(sp.alloc[c] > 0)), same = S.fp.totalA === S.fp.totalB;
       out.push(['Country mix', Math.abs(dl) < 0.1 ? `the recommended footprint (${pct(rec.sim.prob)}) does about as well as the sponsor plan (${pct(sp.sim.prob)})${same ? ` with the same ${fmt(S.fp.totalB)} sites` : ''}${good ? '' : ', so changing countries does not close the gap'}.`
-        : dl > 0 ? `moving sites${added.length ? ` to ${listJoin(added)}` : ''} raises the chance from ${pct(sp.sim.prob)} to ${pct(rec.sim.prob)}${same ? ' with the same number of sites' : ''}.`
+        : dl > 0 ? `moving sites${added.length ? ` to ${listJoin(added)}` : ''} raises the chance from ${pct(sp.sim.prob)} to ${pct(rec.sim.prob)}${same ? ' with the same number of sites' : ''}.${countryEvidenceNote(added, rec.alloc)}`
         : `the recommended footprint does worse (${pct(rec.sim.prob)} against ${pct(sp.sim.prob)}) under the allocation limits; keep the sponsor’s countries or review the limits under Plan.`]);
     }
     if (S.fpp.speedScenario && S.fpp.speedScenario !== 'typical') out.push(['Assumption', `${SPEED_SCENARIOS[S.fpp.speedScenario]?.label || S.fpp.speedScenario} recruitment speed applied to every country.`]);
@@ -12452,6 +12462,12 @@ function needPlanHtml(o, lead) {
 ACTIONS.needRetry = a => needPlanRun(a.dataset.k);
 
 UI_TESTS.push(
+ ['Summary','A recommended country states the completed trials behind its rate and its share of usable sites, and flags a plan that takes most of a country’s sites; the Plan table shows the trial count',async()=>{
+  await r2Ready();const fp=S.fp,c=fp.rows.filter(r=>!r.assumed && r.evidence.trials>0).sort((x,y)=>MC_KERNELS.effectiveCap(y)-MC_KERNELS.effectiveCap(x))[0],cap=MC_KERNELS.effectiveCap(c),few=Math.max(1,Math.floor(cap*0.3)),most=Math.max(1,Math.ceil(cap*CAPACITY_SHARE_FLAG));
+  const a=countryEvidenceNote([c.country],{[c.country]:few}),b=countryEvidenceNote([c.country],{[c.country]:most}),none=countryEvidenceNote(['Nowhere'],{}),d=document.createElement('div');d.innerHTML=wsCountries();
+  const tr=`${c.country} ${fmt(c.evidence.trials)} ${c.evidence.trials===1?'trial':'trials'}`;
+  return [a.includes(tr) && a.includes(`${fmt(few)} of ${fmt(cap)} usable sites`) && !/would take most/.test(a) && /would take most of the usable experienced sites in /.test(b) && b.includes(c.country) && none==='' && [...d.querySelectorAll('.chip')].some(x=>new RegExp(`registry proxy · \\w+ · ${c.evidence.trials} trials?`).test(x.textContent)),JSON.stringify({a,b,cap,few,most})];
+ }],
  ['Summary','Each option in What it would take opens its plan, including those that fall short (the most the search tried): the sites, window and target it means, simulated with the seed and runs that confirmed it, and charted beside the current plan',async()=>{
   await r2Ready();S.params.target=300;await recompute();await waitFor(()=>simulationResultsCurrent());
   if(headlineRows()[0].sim.prob>=NEED_GOAL)return [false,'fixture already on track'];

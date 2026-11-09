@@ -1,0 +1,1102 @@
+{
+ "at": "2026-11-09T22:32:12.589Z",
+ "indications": [
+  {
+   "cond": "type 2 diabetes",
+   "trials": 371,
+   "sdLog": 0.96,
+   "candidates": 48,
+   "averageCandidate": 0.7314531340452384,
+   "z": {
+    "0": {
+     "real": 0.9069101132386174,
+     "picks": [
+      "Algeria (4)",
+      "China (16)",
+      "Japan (41)",
+      "Croatia (6)"
+     ]
+    },
+    "1": {
+     "real": 0.9315933212504452,
+     "picks": [
+      "Algeria (4)",
+      "China (16)",
+      "Japan (41)",
+      "United States (125)"
+     ]
+    },
+    "2": {
+     "real": 0.9315933212504452,
+     "picks": [
+      "China (16)",
+      "Japan (41)",
+      "Algeria (4)",
+      "United States (125)"
+     ]
+    },
+    "3": {
+     "real": 0.9079923428485015,
+     "picks": [
+      "Japan (41)",
+      "United States (125)",
+      "China (16)",
+      "Germany (46)"
+     ]
+    },
+    "1.64": {
+     "real": 0.9315933212504452,
+     "picks": [
+      "China (16)",
+      "Algeria (4)",
+      "Japan (41)",
+      "United States (125)"
+     ]
+    }
+   },
+   "m": {
+    "3": {
+     "real": 0.9069101132386174,
+     "picks": [
+      "Algeria (4)",
+      "China (16)",
+      "Japan (41)",
+      "Croatia (6)"
+     ]
+    },
+    "5": {
+     "real": 0.949674478872087,
+     "picks": [
+      "China (16)",
+      "Japan (41)",
+      "Croatia (6)",
+      "Hong Kong (6)"
+     ]
+    },
+    "8": {
+     "real": 0.945562635212122,
+     "picks": [
+      "China (16)",
+      "Japan (41)",
+      "Puerto Rico (26)",
+      "Czechia (33)"
+     ]
+    },
+    "10": {
+     "real": 0.945562635212122,
+     "picks": [
+      "China (16)",
+      "Japan (41)",
+      "Puerto Rico (26)",
+      "Czechia (33)"
+     ]
+    },
+    "15": {
+     "real": 0.945562635212122,
+     "picks": [
+      "China (16)",
+      "Japan (41)",
+      "Puerto Rico (26)",
+      "Czechia (33)"
+     ]
+    },
+    "20": {
+     "real": 0.841793662094122,
+     "picks": [
+      "Japan (41)",
+      "Puerto Rico (26)",
+      "Czechia (33)",
+      "Germany (46)"
+     ]
+    }
+   }
+  },
+  {
+   "cond": "breast cancer",
+   "trials": 297,
+   "sdLog": 0.85,
+   "candidates": 48,
+   "averageCandidate": 0.7715819891941506,
+   "z": {
+    "0": {
+     "real": 1.3164315558916218,
+     "picks": [
+      "China (13)",
+      "Ukraine (9)",
+      "Belarus (4)",
+      "Saudi Arabia (4)"
+     ]
+    },
+    "1": {
+     "real": 1.3164315558916218,
+     "picks": [
+      "China (13)",
+      "Ukraine (9)",
+      "Belarus (4)",
+      "Saudi Arabia (4)"
+     ]
+    },
+    "2": {
+     "real": 1.0035450646029564,
+     "picks": [
+      "China (13)",
+      "Ukraine (9)",
+      "United States (100)",
+      "Germany (41)"
+     ]
+    },
+    "3": {
+     "real": 1.0035450646029564,
+     "picks": [
+      "China (13)",
+      "United States (100)",
+      "Ukraine (9)",
+      "Germany (41)"
+     ]
+    },
+    "1.64": {
+     "real": 1.0989757811992076,
+     "picks": [
+      "China (13)",
+      "Ukraine (9)",
+      "United States (100)",
+      "Belarus (4)"
+     ]
+    }
+   },
+   "m": {
+    "3": {
+     "real": 1.3164315558916218,
+     "picks": [
+      "China (13)",
+      "Ukraine (9)",
+      "Belarus (4)",
+      "Saudi Arabia (4)"
+     ]
+    },
+    "5": {
+     "real": 1.3270502506519333,
+     "picks": [
+      "China (13)",
+      "Ukraine (9)",
+      "Norway (9)",
+      "Netherlands (16)"
+     ]
+    },
+    "8": {
+     "real": 1.3270502506519333,
+     "picks": [
+      "China (13)",
+      "Ukraine (9)",
+      "Norway (9)",
+      "Netherlands (16)"
+     ]
+    },
+    "10": {
+     "real": 0.9880197756092238,
+     "picks": [
+      "China (13)",
+      "Netherlands (16)",
+      "Thailand (11)",
+      "Russia (17)"
+     ]
+    },
+    "15": {
+     "real": 0.6844752219485389,
+     "picks": [
+      "Netherlands (16)",
+      "Russia (17)",
+      "Hungary (23)",
+      "Germany (41)"
+     ]
+    },
+    "20": {
+     "real": 0.6247640828386646,
+     "picks": [
+      "Hungary (23)",
+      "Germany (41)",
+      "Poland (25)",
+      "United States (100)"
+     ]
+    }
+   }
+  },
+  {
+   "cond": "asthma",
+   "trials": 199,
+   "sdLog": 1.15,
+   "candidates": 42,
+   "averageCandidate": 0.902599272048697,
+   "z": {
+    "0": {
+     "real": 0.8113812397449931,
+     "picks": [
+      "Thailand (5)",
+      "Malaysia (3)",
+      "Sweden (11)",
+      "United States (60)"
+     ]
+    },
+    "1": {
+     "real": 0.8113812397449931,
+     "picks": [
+      "United States (60)",
+      "Thailand (5)",
+      "Sweden (11)",
+      "Malaysia (3)"
+     ]
+    },
+    "2": {
+     "real": 0.8004010306800279,
+     "picks": [
+      "United States (60)",
+      "Sweden (11)",
+      "Thailand (5)",
+      "Germany (42)"
+     ]
+    },
+    "3": {
+     "real": 0.7783155450560538,
+     "picks": [
+      "United States (60)",
+      "Germany (42)",
+      "United Kingdom (35)",
+      "Sweden (11)"
+     ]
+    },
+    "1.64": {
+     "real": 0.8004010306800279,
+     "picks": [
+      "United States (60)",
+      "Thailand (5)",
+      "Sweden (11)",
+      "Germany (42)"
+     ]
+    }
+   },
+   "m": {
+    "3": {
+     "real": 0.8113812397449931,
+     "picks": [
+      "Thailand (5)",
+      "Malaysia (3)",
+      "Sweden (11)",
+      "United States (60)"
+     ]
+    },
+    "5": {
+     "real": 0.806231654938538,
+     "picks": [
+      "Thailand (5)",
+      "Sweden (11)",
+      "United States (60)",
+      "China (5)"
+     ]
+    },
+    "8": {
+     "real": 0.8627227818407074,
+     "picks": [
+      "Sweden (11)",
+      "United States (60)",
+      "Peru (9)",
+      "Bulgaria (19)"
+     ]
+    },
+    "10": {
+     "real": 0.9669850679038005,
+     "picks": [
+      "Sweden (11)",
+      "United States (60)",
+      "Bulgaria (19)",
+      "Slovakia (13)"
+     ]
+    },
+    "15": {
+     "real": 0.8239756261081779,
+     "picks": [
+      "United States (60)",
+      "Bulgaria (19)",
+      "United Kingdom (35)",
+      "Germany (42)"
+     ]
+    },
+    "20": {
+     "real": 0.8273700156946766,
+     "picks": [
+      "United States (60)",
+      "United Kingdom (35)",
+      "Germany (42)",
+      "Hungary (22)"
+     ]
+    }
+   }
+  },
+  {
+   "cond": "rheumatoid arthritis",
+   "trials": 154,
+   "sdLog": 0.72,
+   "candidates": 44,
+   "averageCandidate": 0.8064033165730612,
+   "z": {
+    "0": {
+     "real": 0.8869427465197425,
+     "picks": [
+      "China (6)",
+      "India (4)",
+      "Chile (15)",
+      "Russia (34)"
+     ]
+    },
+    "1": {
+     "real": 0.8869427465197425,
+     "picks": [
+      "China (6)",
+      "Chile (15)",
+      "India (4)",
+      "Russia (34)"
+     ]
+    },
+    "2": {
+     "real": 0.9641260883651682,
+     "picks": [
+      "China (6)",
+      "Chile (15)",
+      "Russia (34)",
+      "United States (43)"
+     ]
+    },
+    "3": {
+     "real": 0.9641260883651683,
+     "picks": [
+      "China (6)",
+      "Russia (34)",
+      "Chile (15)",
+      "United States (43)"
+     ]
+    },
+    "1.64": {
+     "real": 0.8869427465197426,
+     "picks": [
+      "China (6)",
+      "Chile (15)",
+      "Russia (34)",
+      "India (4)"
+     ]
+    }
+   },
+   "m": {
+    "3": {
+     "real": 0.8869427465197425,
+     "picks": [
+      "China (6)",
+      "India (4)",
+      "Chile (15)",
+      "Russia (34)"
+     ]
+    },
+    "5": {
+     "real": 0.9715084196860733,
+     "picks": [
+      "China (6)",
+      "Chile (15)",
+      "Russia (34)",
+      "Slovakia (10)"
+     ]
+    },
+    "8": {
+     "real": 0.8370147124116901,
+     "picks": [
+      "Chile (15)",
+      "Russia (34)",
+      "Slovakia (10)",
+      "Ukraine (20)"
+     ]
+    },
+    "10": {
+     "real": 0.8370147124116901,
+     "picks": [
+      "Chile (15)",
+      "Russia (34)",
+      "Slovakia (10)",
+      "Ukraine (20)"
+     ]
+    },
+    "15": {
+     "real": 0.7985875126284148,
+     "picks": [
+      "Chile (15)",
+      "Russia (34)",
+      "Ukraine (20)",
+      "South Africa (18)"
+     ]
+    },
+    "20": {
+     "real": 0.9228071802930352,
+     "picks": [
+      "Russia (34)",
+      "Ukraine (20)",
+      "Czechia (26)",
+      "United States (43)"
+     ]
+    }
+   }
+  },
+  {
+   "cond": "heart failure",
+   "trials": 102,
+   "sdLog": 0.79,
+   "candidates": 38,
+   "averageCandidate": 0.9812142059492033,
+   "z": {
+    "0": {
+     "real": 1.2138752441907228,
+     "picks": [
+      "Denmark (11)",
+      "Latvia (7)",
+      "Greece (12)",
+      "Serbia (8)"
+     ]
+    },
+    "1": {
+     "real": 1.1782680383454216,
+     "picks": [
+      "Denmark (11)",
+      "Greece (12)",
+      "Latvia (7)",
+      "Netherlands (24)"
+     ]
+    },
+    "2": {
+     "real": 0.923762922121764,
+     "picks": [
+      "Germany (30)",
+      "Denmark (11)",
+      "Netherlands (24)",
+      "Italy (22)"
+     ]
+    },
+    "3": {
+     "real": 0.7870538911609861,
+     "picks": [
+      "Germany (30)",
+      "Netherlands (24)",
+      "Italy (22)",
+      "Spain (23)"
+     ]
+    },
+    "1.64": {
+     "real": 0.923762922121764,
+     "picks": [
+      "Denmark (11)",
+      "Germany (30)",
+      "Netherlands (24)",
+      "Italy (22)"
+     ]
+    }
+   },
+   "m": {
+    "3": {
+     "real": 1.2138752441907228,
+     "picks": [
+      "Denmark (11)",
+      "Latvia (7)",
+      "Greece (12)",
+      "Serbia (8)"
+     ]
+    },
+    "5": {
+     "real": 1.2138752441907228,
+     "picks": [
+      "Denmark (11)",
+      "Latvia (7)",
+      "Greece (12)",
+      "Serbia (8)"
+     ]
+    },
+    "8": {
+     "real": 1.1413451104245962,
+     "picks": [
+      "Denmark (11)",
+      "Greece (12)",
+      "Serbia (8)",
+      "Bulgaria (17)"
+     ]
+    },
+    "10": {
+     "real": 1.0709679066525584,
+     "picks": [
+      "Denmark (11)",
+      "Greece (12)",
+      "Bulgaria (17)",
+      "Austria (11)"
+     ]
+    },
+    "15": {
+     "real": 0.7870538911609861,
+     "picks": [
+      "Bulgaria (17)",
+      "Netherlands (24)",
+      "Italy (22)",
+      "Germany (30)"
+     ]
+    },
+    "20": {
+     "real": 0.7870538911609861,
+     "picks": [
+      "Netherlands (24)",
+      "Italy (22)",
+      "Germany (30)",
+      "Spain (23)"
+     ]
+    }
+   }
+  },
+  {
+   "cond": "ulcerative colitis",
+   "trials": 96,
+   "sdLog": 0.62,
+   "candidates": 46,
+   "averageCandidate": 1.0119298791157794,
+   "z": {
+    "0": {
+     "real": 1.1066392325216354,
+     "picks": [
+      "Moldova (3)",
+      "Japan (16)",
+      "China (3)",
+      "Malaysia (5)"
+     ]
+    },
+    "1": {
+     "real": 0.9346532896103232,
+     "picks": [
+      "Moldova (3)",
+      "Japan (16)",
+      "Hungary (32)",
+      "Poland (37)"
+     ]
+    },
+    "2": {
+     "real": 0.934653289610323,
+     "picks": [
+      "Moldova (3)",
+      "Japan (16)",
+      "Poland (37)",
+      "Hungary (32)"
+     ]
+    },
+    "3": {
+     "real": 0.934653289610323,
+     "picks": [
+      "Moldova (3)",
+      "Poland (37)",
+      "Hungary (32)",
+      "Japan (16)"
+     ]
+    },
+    "1.64": {
+     "real": 0.9346532896103232,
+     "picks": [
+      "Moldova (3)",
+      "Japan (16)",
+      "Hungary (32)",
+      "Poland (37)"
+     ]
+    }
+   },
+   "m": {
+    "3": {
+     "real": 1.1066392325216354,
+     "picks": [
+      "Moldova (3)",
+      "Japan (16)",
+      "China (3)",
+      "Malaysia (5)"
+     ]
+    },
+    "5": {
+     "real": 1.0320683894077647,
+     "picks": [
+      "Japan (16)",
+      "Malaysia (5)",
+      "Hungary (32)",
+      "Serbia (17)"
+     ]
+    },
+    "8": {
+     "real": 0.9445542631802927,
+     "picks": [
+      "Japan (16)",
+      "Hungary (32)",
+      "Serbia (17)",
+      "Poland (37)"
+     ]
+    },
+    "10": {
+     "real": 0.9445542631802927,
+     "picks": [
+      "Japan (16)",
+      "Hungary (32)",
+      "Serbia (17)",
+      "Poland (37)"
+     ]
+    },
+    "15": {
+     "real": 0.9445542631802927,
+     "picks": [
+      "Japan (16)",
+      "Hungary (32)",
+      "Serbia (17)",
+      "Poland (37)"
+     ]
+    },
+    "20": {
+     "real": 0.9588225520626257,
+     "picks": [
+      "Hungary (32)",
+      "Poland (37)",
+      "France (20)",
+      "Bulgaria (20)"
+     ]
+    }
+   }
+  },
+  {
+   "cond": "COPD",
+   "trials": 131,
+   "sdLog": 1.04,
+   "candidates": 42,
+   "averageCandidate": 0.4088235768031769,
+   "z": {
+    "0": {
+     "real": 0.3729452253172481,
+     "picks": [
+      "Hungary (15)",
+      "Ukraine (13)",
+      "Estonia (4)",
+      "Romania (16)"
+     ]
+    },
+    "1": {
+     "real": 0.3729452253172481,
+     "picks": [
+      "Hungary (15)",
+      "Ukraine (13)",
+      "Romania (16)",
+      "Estonia (4)"
+     ]
+    },
+    "2": {
+     "real": 0.4470192219312544,
+     "picks": [
+      "Hungary (15)",
+      "Ukraine (13)",
+      "Romania (16)",
+      "United States (44)"
+     ]
+    },
+    "3": {
+     "real": 0.49765617082900815,
+     "picks": [
+      "Hungary (15)",
+      "Ukraine (13)",
+      "United States (44)",
+      "Germany (31)"
+     ]
+    },
+    "1.64": {
+     "real": 0.4470192219312544,
+     "picks": [
+      "Hungary (15)",
+      "Ukraine (13)",
+      "Romania (16)",
+      "United States (44)"
+     ]
+    }
+   },
+   "m": {
+    "3": {
+     "real": 0.3729452253172481,
+     "picks": [
+      "Hungary (15)",
+      "Ukraine (13)",
+      "Estonia (4)",
+      "Romania (16)"
+     ]
+    },
+    "5": {
+     "real": 0.43431864494865274,
+     "picks": [
+      "Hungary (15)",
+      "Ukraine (13)",
+      "Romania (16)",
+      "Germany (31)"
+     ]
+    },
+    "8": {
+     "real": 0.43431864494865274,
+     "picks": [
+      "Hungary (15)",
+      "Ukraine (13)",
+      "Romania (16)",
+      "Germany (31)"
+     ]
+    },
+    "10": {
+     "real": 0.43431864494865274,
+     "picks": [
+      "Hungary (15)",
+      "Ukraine (13)",
+      "Romania (16)",
+      "Germany (31)"
+     ]
+    },
+    "15": {
+     "real": 0.499807980698534,
+     "picks": [
+      "Hungary (15)",
+      "Romania (16)",
+      "Germany (31)",
+      "United States (44)"
+     ]
+    },
+    "20": {
+     "real": 0.49980798069853394,
+     "picks": [
+      "Germany (31)",
+      "United States (44)",
+      "Russia (22)",
+      "Poland (22)"
+     ]
+    }
+   }
+  },
+  {
+   "cond": "multiple sclerosis",
+   "trials": 89,
+   "sdLog": 0.96,
+   "candidates": 34,
+   "averageCandidate": 0.7878120133018968,
+   "z": {
+    "0": {
+     "real": 0.877354922246932,
+     "picks": [
+      "Australia (7)",
+      "Belarus (5)",
+      "Estonia (7)",
+      "Croatia (9)"
+     ]
+    },
+    "1": {
+     "real": 0.7662175713535823,
+     "picks": [
+      "United States (32)",
+      "Croatia (9)",
+      "Italy (13)",
+      "Australia (7)"
+     ]
+    },
+    "2": {
+     "real": 0.7662175713535824,
+     "picks": [
+      "United States (32)",
+      "Italy (13)",
+      "Croatia (9)",
+      "Australia (7)"
+     ]
+    },
+    "3": {
+     "real": 0.8486253889034366,
+     "picks": [
+      "United States (32)",
+      "Italy (13)",
+      "Poland (18)",
+      "Croatia (9)"
+     ]
+    },
+    "1.64": {
+     "real": 0.7662175713535824,
+     "picks": [
+      "United States (32)",
+      "Italy (13)",
+      "Croatia (9)",
+      "Australia (7)"
+     ]
+    }
+   },
+   "m": {
+    "3": {
+     "real": 0.877354922246932,
+     "picks": [
+      "Australia (7)",
+      "Belarus (5)",
+      "Estonia (7)",
+      "Croatia (9)"
+     ]
+    },
+    "5": {
+     "real": 0.877354922246932,
+     "picks": [
+      "Australia (7)",
+      "Belarus (5)",
+      "Estonia (7)",
+      "Croatia (9)"
+     ]
+    },
+    "8": {
+     "real": 0.839522279171405,
+     "picks": [
+      "Croatia (9)",
+      "Lithuania (8)",
+      "Hungary (9)",
+      "Italy (13)"
+     ]
+    },
+    "10": {
+     "real": 0.8677420847213706,
+     "picks": [
+      "Italy (13)",
+      "United States (32)",
+      "Russia (12)",
+      "Serbia (10)"
+     ]
+    },
+    "15": {
+     "real": 0.8421916445947031,
+     "picks": [
+      "United States (32)",
+      "Bulgaria (16)",
+      "Poland (18)",
+      "Canada (18)"
+     ]
+    },
+    "20": {
+     "real": 0.861274027212836,
+     "picks": [
+      "United States (32)"
+     ]
+    }
+   }
+  },
+  {
+   "cond": "psoriasis",
+   "trials": 291,
+   "sdLog": 0.96,
+   "candidates": 30,
+   "averageCandidate": 0.8424330205410036,
+   "z": {
+    "0": {
+     "real": 0.8905128946165387,
+     "picks": [
+      "China (5)",
+      "United States (109)",
+      "Turkey (Türkiye) (7)",
+      "Puerto Rico (11)"
+     ]
+    },
+    "1": {
+     "real": 0.8781093571519258,
+     "picks": [
+      "United States (109)",
+      "Germany (68)",
+      "Canada (63)",
+      "Poland (63)"
+     ]
+    },
+    "2": {
+     "real": 0.8781093571519258,
+     "picks": [
+      "United States (109)",
+      "Germany (68)",
+      "Canada (63)",
+      "Poland (63)"
+     ]
+    },
+    "3": {
+     "real": 0.8781093571519258,
+     "picks": [
+      "United States (109)",
+      "Germany (68)",
+      "Canada (63)",
+      "Poland (63)"
+     ]
+    },
+    "1.64": {
+     "real": 0.8781093571519258,
+     "picks": [
+      "United States (109)",
+      "Germany (68)",
+      "Canada (63)",
+      "Poland (63)"
+     ]
+    }
+   },
+   "m": {
+    "3": {
+     "real": 0.8905128946165387,
+     "picks": [
+      "China (5)",
+      "United States (109)",
+      "Turkey (Türkiye) (7)",
+      "Puerto Rico (11)"
+     ]
+    },
+    "5": {
+     "real": 0.8905128946165387,
+     "picks": [
+      "China (5)",
+      "United States (109)",
+      "Turkey (Türkiye) (7)",
+      "Puerto Rico (11)"
+     ]
+    },
+    "8": {
+     "real": 0.7350543624959035,
+     "picks": [
+      "United States (109)",
+      "Puerto Rico (11)",
+      "Australia (29)",
+      "Canada (63)"
+     ]
+    },
+    "10": {
+     "real": 0.7350543624959035,
+     "picks": [
+      "United States (109)",
+      "Puerto Rico (11)",
+      "Australia (29)",
+      "Canada (63)"
+     ]
+    },
+    "15": {
+     "real": 0.7706300161533779,
+     "picks": [
+      "United States (109)",
+      "Australia (29)",
+      "Canada (63)",
+      "Germany (68)"
+     ]
+    },
+    "20": {
+     "real": 0.7706300161533779,
+     "picks": [
+      "United States (109)",
+      "Australia (29)",
+      "Canada (63)",
+      "Germany (68)"
+     ]
+    }
+   }
+  },
+  {
+   "cond": "non-small cell lung cancer",
+   "trials": 331,
+   "sdLog": 0.8,
+   "candidates": 48,
+   "averageCandidate": 0.8000828813135293,
+   "z": {
+    "0": {
+     "real": 1.0055741929981432,
+     "picks": [
+      "Georgia (5)",
+      "Sweden (13)",
+      "Finland (9)",
+      "New Zealand (6)"
+     ]
+    },
+    "1": {
+     "real": 0.948681920746414,
+     "picks": [
+      "Georgia (5)",
+      "Sweden (13)",
+      "Finland (9)",
+      "United States (112)"
+     ]
+    },
+    "2": {
+     "real": 0.8296885744000778,
+     "picks": [
+      "United States (112)",
+      "Georgia (5)",
+      "Sweden (13)",
+      "Canada (51)"
+     ]
+    },
+    "3": {
+     "real": 0.8931249460481759,
+     "picks": [
+      "United States (112)",
+      "Canada (51)",
+      "Spain (77)",
+      "China (37)"
+     ]
+    },
+    "1.64": {
+     "real": 0.8296885744000778,
+     "picks": [
+      "Georgia (5)",
+      "Sweden (13)",
+      "United States (112)",
+      "Canada (51)"
+     ]
+    }
+   },
+   "m": {
+    "3": {
+     "real": 1.0055741929981432,
+     "picks": [
+      "Georgia (5)",
+      "Sweden (13)",
+      "Finland (9)",
+      "New Zealand (6)"
+     ]
+    },
+    "5": {
+     "real": 1.0055741929981432,
+     "picks": [
+      "Georgia (5)",
+      "Sweden (13)",
+      "Finland (9)",
+      "New Zealand (6)"
+     ]
+    },
+    "8": {
+     "real": 0.9371532238649742,
+     "picks": [
+      "Sweden (13)",
+      "Finland (9)",
+      "Serbia (11)",
+      "Mexico (17)"
+     ]
+    },
+    "10": {
+     "real": 0.8115843948968966,
+     "picks": [
+      "Sweden (13)",
+      "Serbia (11)",
+      "Mexico (17)",
+      "Switzerland (19)"
+     ]
+    },
+    "15": {
+     "real": 0.8948663142919066,
+     "picks": [
+      "Mexico (17)",
+      "Switzerland (19)",
+      "China (37)",
+      "Canada (51)"
+     ]
+    },
+    "20": {
+     "real": 0.9401032985926788,
+     "picks": [
+      "China (37)",
+      "Canada (51)",
+      "United States (112)",
+      "Ukraine (20)"
+     ]
+    }
+   }
+  }
+ ]
+}

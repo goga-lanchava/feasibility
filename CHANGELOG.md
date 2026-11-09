@@ -2,6 +2,49 @@
 
 Release notes for the Trial Feasibility Pipeline, newest first. v0.9.13 (motion layer and wider veil drift) and v0.9.14 (parser rules, released together with v0.9.15) have no notes of their own; see the commit history.
 
+## v0.9.18 — The evidence behind each recommended country
+
+No forecast changed, and neither did the recommendation: the engine (`src/`) and the country ranking are untouched.
+
+### What the Report now says about recommended countries
+When the recommended footprint moves sites to other countries, the "Country mix" line of the decision summary (and the
+executive summary and bid-defense pack, which share it) states, for each added country:
+
+- how many completed comparator trials its recruitment rate comes from;
+- how many of its usable experienced sites the plan would take.
+
+It flags a plan that takes 60% or more of a country's usable sites, because those sites have to be available. Example
+(NCT00646542, 12 sites): "Lebanon 3 trials, 3 of 4 usable sites; Algeria 7 trials, 3 of 10 usable sites; Japan 75 trials,
+3 of 591 usable sites; Hong Kong 10 trials, 3 of 5 usable sites. The plan would take most of the usable experienced sites
+in Lebanon and Hong Kong: confirm that those sites are available before proposing them."
+
+Plan › country table: the "Rate evidence" chip shows the number of trials next to the basis and quality.
+
+### Tested, not adopted: ranking countries with a discount for thin evidence
+The recommendation ranks countries by their estimated per-site rate, so a country with 3 trials can rank above one with
+75. Two guards were tested on live registry data for ten indications
+(`stress-test/analysis/ranking_split_half.cjs`, results in `ranking-split-half.json`). The completed trials of each
+indication were split by start date; countries were picked on the older half and scored by their median per-site rate in
+the newer half, relative to that half's global median (top 4 picks):
+
+| Ranking rule | Score | Against the current ranking |
+|---|---|---|
+| Estimated rate (current) | 0.94 | – |
+| Rate lowered by 1 standard error | 0.90 | better in 1, worse in 5 of 10 |
+| Rate lowered by 1.64 standard errors | 0.85 | better in 2, worse in 7 |
+| Rate lowered by 2 standard errors | 0.85 | better in 3, worse in 7 |
+| At least 5 trials (default is 3) | 0.95 | better in 4, worse in 2 |
+| At least 8 trials | 0.90 | better in 4, worse in 6 |
+| At least 10 trials | 0.86 | better in 3, worse in 7 |
+| Average candidate country | 0.80 | |
+
+Countries picked on few trials recruited as well later as those picked on many, so neither guard was adopted. Limits of
+the test: ten indications; a country's rate is the rate of the trials that ran there, as everywhere in the tool; countries
+without 3 rated trials in the newer half could not be scored.
+
+### Tests
+View suite: one new check (66) for the evidence sentence, the capacity flag and the trial count in the Plan table.
+
 ## v0.9.17 — Registry import, trials already under way, and warnings before the verdict
 
 No forecast changed: the engine (`src/`) is untouched. All new code is in sections 22 and 23 of the HTML, at the end of the main script.
